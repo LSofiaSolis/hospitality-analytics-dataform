@@ -1,0 +1,16 @@
+config {
+  type: "view",
+  schema: "hospitality_marts",
+  name: "dim_travel_agent",
+  description: "Travel agent dimension.",
+  tags: ["marts", "dimension", "commission"]
+}
+
+SELECT
+  TravelAgentID as travel_agent_id,
+  IATANumber as iata_number,
+  TravelAgentCompanyName as company_name,
+  Address as address,
+  CreatedDate as created_date
+
+FROM ${ref("Dim_TravelAgent")}

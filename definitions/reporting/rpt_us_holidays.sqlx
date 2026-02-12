@@ -1,0 +1,40 @@
+config {
+  type: "view",
+  schema: "hospitality_reporting",
+  name: "rpt_us_holidays",
+  description: "US Holidays - matches v_US_Holidays exactly."
+}
+
+WITH years AS (
+  SELECT year
+  FROM UNNEST(GENERATE_ARRAY(EXTRACT(YEAR FROM CURRENT_DATE()) - 1, 
+                             EXTRACT(YEAR FROM CURRENT_DATE()) + 2)) AS year
+),
+
+holidays AS (
+  SELECT year, DATE(year, 1, 1) as date, "New Year's Day" as event_name, 'Holiday' as event_type, 'Medium' as impact_level FROM years
+  UNION ALL
+  SELECT year, DATE_ADD(DATE(year, 1, 1), INTERVAL (15 + MOD(9 - EXTRACT(DAYOFWEEK FROM DATE(year, 1, 1)), 7)) DAY), "Martin Luther King Jr. Day", 'Holiday', 'Low' FROM years
+  UNION ALL
+  SELECT year, DATE_ADD(DATE(year, 2, 1), INTERVAL (15 + MOD(9 - EXTRACT(DAYOFWEEK FROM DATE(year, 2, 1)), 7)) DAY), "Presidents Day", 'Holiday', 'Medium' FROM years
+  UNION ALL
+  SELECT year, DATE_SUB(DATE(year, 6, 1), INTERVAL MOD(EXTRACT(DAYOFWEEK FROM DATE(year, 6, 1)) - 2 + 7, 7) DAY), "Memorial Day", 'Holiday', 'High' FROM years
+  UNION ALL
+  SELECT year, DATE(year, 7, 4), "Independence Day", 'Holiday', 'High' FROM years
+  UNION ALL
+  SELECT year, DATE_ADD(DATE(year, 9, 1), INTERVAL MOD(9 - EXTRACT(DAYOFWEEK FROM DATE(year, 9, 1)), 7) DAY), "Labor Day", 'Holiday', 'High' FROM years
+  UNION ALL
+  SELECT year, DATE_ADD(DATE(year, 11, 1), INTERVAL (21 + MOD(12 - EXTRACT(DAYOFWEEK FROM DATE(year, 11, 1)), 7)) DAY), "Thanksgiving", 'Holiday', 'High' FROM years
+  UNION ALL
+  SELECT year, DATE(year, 12, 25), "Christmas", 'Holiday', 'High' FROM years
+)
+
+SELECT
+  date as Date,
+  event_name as Event_Name,
+  event_type as Event_Type,
+  impact_level as Impact_Level,
+  CASE WHEN impact_level = 'High' THEN TRUE ELSE FALSE END as Is_Peak_Season
+FROM holidays
+WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY)
+ORDER BY date

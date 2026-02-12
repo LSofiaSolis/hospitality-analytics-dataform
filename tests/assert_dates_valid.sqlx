@@ -1,0 +1,10 @@
+config {
+  type: "assertion",
+  name: "assert_booking_dates_valid",
+  description: "Ensures booking dates are reasonable (not in future, not too old)."
+}
+
+SELECT *
+FROM ${ref("stg_booked_reservations")}
+WHERE booking_date > CURRENT_DATE()
+   OR booking_date < '2020-01-01'

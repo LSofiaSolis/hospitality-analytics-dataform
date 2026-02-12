@@ -1,0 +1,43 @@
+config {
+  type: "table",
+  schema: "hospitality_staging",
+  name: "stg_occupancy",
+  description: "Combined past and future occupancy data.",
+  tags: ["staging", "daily", "occupancy"]
+}
+
+-- Past occupancy
+SELECT
+  SAFE.PARSE_DATE('%b %d, %Y', Date) AS date,
+  `Room Type Code` AS room_type_code,
+  `Room Type Name` AS room_type_name,
+  SAFE_CAST(`Room Available` AS INT64) AS rooms_available,
+  SAFE_CAST(Sold AS INT64) AS rooms_sold,
+  SAFE_CAST(`Room Revenue` AS FLOAT64) AS room_revenue,
+  SAFE_CAST(ADR AS FLOAT64) AS adr,
+  SAFE_CAST(Occupancy AS FLOAT64) AS occupancy,
+  SAFE_CAST(`Revpar Without OOO Rooms` AS FLOAT64) AS revpar_without_ooo,
+  SAFE_CAST(`Revpar With OOO Rooms` AS FLOAT64) AS revpar_with_ooo,
+  'PAST' AS source_type,
+  CURRENT_TIMESTAMP() AS _loaded_at
+FROM ${ref("raw_occupancy_past")}
+WHERE Date IS NOT NULL AND TRIM(Date) != ''
+
+UNION ALL
+
+-- Future occupancy
+SELECT
+  SAFE.PARSE_DATE('%b %d, %Y', Date) AS date,
+  `Room Type Code` AS room_type_code,
+  `Room Type Name` AS room_type_name,
+  SAFE_CAST(`Available Rooms` AS INT64) AS rooms_available,
+  SAFE_CAST(`Sold Rooms` AS INT64) AS rooms_sold,
+  SAFE_CAST(`Room Revenue` AS FLOAT64) AS room_revenue,
+  SAFE_CAST(ADR AS FLOAT64) AS adr,
+  SAFE_CAST(Occupancy AS FLOAT64) AS occupancy,
+  SAFE_CAST(`Revpar Without OOO Rooms` AS FLOAT64) AS revpar_without_ooo,
+  SAFE_CAST(`Revpar With OOO Rooms` AS FLOAT64) AS revpar_with_ooo,
+  'FUTURE' AS source_type,
+  CURRENT_TIMESTAMP() AS _loaded_at
+FROM ${ref("raw_occupancy_future")}
+WHERE Date IS NOT NULL AND TRIM(Date) != ''

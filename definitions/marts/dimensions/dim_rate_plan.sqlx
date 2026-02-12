@@ -1,0 +1,24 @@
+config {
+  type: "view",
+  schema: "hospitality_marts",
+  name: "dim_rate_plan",
+  description: "Rate plan dimension with all attributes.",
+  tags: ["marts", "dimension", "core"]
+}
+
+SELECT
+  RatePlanID as rate_plan_id,
+  RatePlanCode as rate_plan_code,
+  RatePlanName as rate_plan_name,
+  DiscountPercent as discount_percent,
+  AppliesTo as applies_to,
+  MarketSegment as market_segment,
+  BookingSource as booking_source,
+  MinLOS as min_los,
+  MaxLOS as max_los,
+  Notes as notes,
+  HasCommission as has_commission,
+  IsActive as is_active,
+  CreatedDate as created_date
+
+FROM ${ref("Dim_RatePlan")}

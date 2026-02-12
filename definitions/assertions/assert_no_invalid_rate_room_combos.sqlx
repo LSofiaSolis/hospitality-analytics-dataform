@@ -1,0 +1,26 @@
+config {
+  type: "assertion",
+  schema: "hospitality_assertions",
+  name: "assert_no_invalid_rate_room_combos",
+  description: "Ensures no reservations violate rate plan room type eligibility rules",
+  tags: ["assertions", "data-quality", "governance"]
+}
+
+SELECT 
+  r.confirmation_number,
+  r.rate_code,
+  r.room_type,
+  r.booking_date,
+  'Rate plan not eligible for this room type' as violation_reason,
+  rre.eligibility_reason as rule_reason
+FROM ${ref("stg_booked_reservations")} r
+LEFT JOIN ${ref("dim_rate_plan")} rp
+  ON r.rate_code = rp.rate_plan_code
+LEFT JOIN hospitality_data.Dim_RoomType rt
+  ON r.room_type = rt.RoomTypeCode
+LEFT JOIN ${ref("stg_rate_room_eligibility")} rre
+  ON rp.rate_plan_id = rre.rate_plan_id
+  AND rt.RoomTypeID = rre.room_type_id
+  AND r.booking_date BETWEEN rre.effective_date AND rre.expiration_date
+WHERE rre.is_eligible = FALSE
+  OR (rp.rate_plan_id IS NOT NULL AND rt.RoomTypeID IS NOT NULL AND rre.rule_id IS NULL)

@@ -1,0 +1,15 @@
+config {
+  type: "view",
+  schema: "hospitality_marts",
+  name: "dim_source",
+  description: "Booking source dimension.",
+  tags: ["marts", "dimension", "core"]
+}
+
+SELECT
+  SourceID as source_id,
+  SourceCode as source_code,
+  SourceName as source_name,
+  CreatedDate as created_date
+
+FROM ${ref("Dim_Source")}

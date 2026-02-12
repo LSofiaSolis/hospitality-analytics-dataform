@@ -1,0 +1,29 @@
+config {
+  type: "table",
+  schema: "hospitality_staging",
+  name: "stg_travel_agent",
+  description: "Cleaned travel agent checkout data.",
+  tags: ["staging", "weekly", "commission"]
+}
+
+SELECT
+  TRIM(`IATA Number`) AS iata_number,
+  TRIM(`Travel Agent Company Name`) AS company_name,
+  TRIM(Address) AS address,
+  TRIM(`Guest Name`) AS guest_name,
+  TRIM(`Confirmation No`) AS confirmation_number,
+  SAFE_CAST(`Arrival Date` AS DATE) AS arrival_date,
+  SAFE_CAST(`Departure Date` AS DATE) AS departure_date,
+  SAFE_CAST(Nights AS INT64) AS nights,
+  TRIM(`Rate Plan`) AS rate_plan,
+  SAFE_CAST(`Total Room And Package Revenue` AS FLOAT64) AS total_revenue,
+  SAFE_CAST(`Room Revenue` AS FLOAT64) AS room_revenue,
+  SAFE_CAST(`Package Revenue` AS FLOAT64) AS package_revenue,
+  SAFE_CAST(Tax AS FLOAT64) AS tax,
+  SAFE_CAST(`Commission Rate` AS FLOAT64) AS commission_rate,
+  SAFE_CAST(`Estimated Commission` AS FLOAT64) AS estimated_commission,
+  TRIM(Status) AS status,
+  CURRENT_TIMESTAMP() AS _loaded_at
+
+FROM ${ref("hospitality_raw", "raw_travel_agent_checkout")}
+WHERE `Confirmation No` IS NOT NULL

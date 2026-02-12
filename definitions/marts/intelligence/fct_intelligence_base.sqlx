@@ -1,0 +1,66 @@
+config {
+  type: "table",
+  schema: "hospitality_marts",
+  name: "fct_intelligence_base",
+  description: "Unified intelligence view with channel classification, segment grouping, and STLY metrics.",
+  tags: ["marts", "intelligence", "daily", "dashboard"]
+}
+
+WITH current_data AS (
+  SELECT 
+    booking_date,
+    booking_day_name,
+    arrival_year,
+    arrival_month,
+    arrival_month_name,
+    market_segment,
+    room_type_category,
+    rate_plan,
+    
+    CASE 
+      WHEN market_segment IN ('WEBSITE', 'CALL CENTER', 'RACK') THEN 'Direct'
+      WHEN market_segment IN ('EXPEDIA', 'BOOKING', 'AIRBNB', 'VRBO', 'OTA') THEN 'OTA'
+      WHEN market_segment = 'GROUP' THEN 'Group'
+      WHEN market_segment = 'HILTON' THEN 'Hilton'
+      WHEN market_segment = 'SABRE' THEN 'GDS'
+      WHEN market_segment = 'DISCOUNTS' THEN 'Discount'
+      WHEN market_segment = 'WHOLESALE' THEN 'Wholesale'
+      WHEN market_segment IN ('COMP', 'EMPLOYEE') THEN 'Comp'
+      WHEN market_segment = 'PACKAGE' THEN 'Package'
+      WHEN market_segment = 'GOLF' THEN 'Golf'
+      ELSE 'Other'
+    END as channel_type,
+    
+    CASE 
+      WHEN market_segment = 'GROUP' THEN 'Group'
+      WHEN market_segment IN ('COMP', 'EMPLOYEE') THEN 'Comp'
+      ELSE 'Transient'
+    END as generalized_segment,
+    
+    pickup_bookings, pickup_nights, pickup_revenue,
+    cancelled_bookings, cancelled_nights, cancelled_revenue,
+    net_nights, net_revenue
+  FROM ${ref("fct_pickup_daily")}
+),
+
+stly_data AS (
+  SELECT 
+    DATE_ADD(booking_date, INTERVAL 1 YEAR) as booking_date,
+    market_segment, room_type_category, rate_plan,
+    pickup_bookings as stly_bookings,
+    pickup_nights as stly_nights,
+    pickup_revenue as stly_revenue
+  FROM ${ref("fct_pickup_daily")}
+)
+
+SELECT 
+  c.*,
+  COALESCE(s.stly_bookings, 0) as stly_bookings,
+  COALESCE(s.stly_nights, 0) as stly_nights,
+  COALESCE(s.stly_revenue, 0) as stly_revenue
+FROM current_data c
+LEFT JOIN stly_data s
+  ON c.booking_date = s.booking_date
+  AND c.market_segment = s.market_segment
+  AND c.room_type_category = s.room_type_category
+  AND c.rate_plan = s.rate_plan

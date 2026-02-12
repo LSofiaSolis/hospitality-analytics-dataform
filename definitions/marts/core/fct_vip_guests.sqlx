@@ -1,0 +1,27 @@
+config {
+  type: "table",
+  schema: "hospitality_marts",
+  name: "fct_vip_guests"
+}
+
+SELECT
+  TRIM(confirmation_number) AS ConfirmationNumber,
+  FARM_FINGERPRINT(TRIM(guest_name)) AS GuestID,
+  FARM_FINGERPRINT(TRIM(room_type)) AS RoomTypeID,
+  FARM_FINGERPRINT(TRIM(rate_plan)) AS RatePlanID,
+  FARM_FINGERPRINT(TRIM(reservation_status)) AS ReservationStatusID,
+  CAST(FORMAT_DATE('%Y%m%d', arrival_date) AS STRING) AS ArrivalDateKey,
+  CAST(FORMAT_DATE('%Y%m%d', departure_date) AS STRING) AS DepartureDateKey,
+  TRIM(guest_tier) AS GuestTier,
+  TRIM(room_number) AS RoomNumber,
+  CAST(adults AS STRING) AS Adults,
+  CAST(children AS STRING) AS Children,
+  CAST(rate AS STRING) AS Rate,
+  CAST(deposit_collected_today AS FLOAT64) AS DepositCollectedToday,
+  CAST(deposit_used AS FLOAT64) AS DepositUsed,
+  CAST(deposit_collected_until_value AS FLOAT64) AS DepositCollectedUntilDate,
+  TRIM(room_requests) AS RoomRequests,
+  TRIM(stay_requests) AS StayRequests,
+  CURRENT_TIMESTAMP() AS CreatedDate
+FROM ${ref("stg_vip_guest")}
+WHERE confirmation_number IS NOT NULL

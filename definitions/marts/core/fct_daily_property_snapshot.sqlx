@@ -1,0 +1,94 @@
+config {
+  type: "table",
+  schema: "hospitality_marts",
+  name: "fct_daily_property_snapshot"
+}
+
+WITH occupancy_metrics AS (
+  SELECT
+    date AS Date,
+    SUM(CAST(rooms_available AS INT64)) AS RoomsAvailable,
+    SUM(CAST(rooms_sold AS INT64)) AS RoomsSold,
+    SUM(CAST(room_revenue AS FLOAT64)) AS RoomRevenue,
+    SAFE_DIVIDE(SUM(CAST(room_revenue AS FLOAT64)), NULLIF(SUM(CAST(rooms_sold AS INT64)), 0)) AS ADR,
+    SAFE_DIVIDE(SUM(CAST(rooms_sold AS INT64)), NULLIF(SUM(CAST(rooms_available AS INT64)), 0)) AS Occupancy,
+    SAFE_DIVIDE(SUM(CAST(room_revenue AS FLOAT64)), NULLIF(SUM(CAST(rooms_available AS INT64)), 0)) AS RevPAR
+  FROM ${ref("stg_occupancy")}
+  WHERE date IS NOT NULL
+  GROUP BY date
+),
+
+arrival_metrics AS (
+  SELECT
+    arrival_date AS ArrivalDate,
+    COUNT(DISTINCT confirmation_number) AS Arrivals,
+    SUM(CAST(nights AS INT64)) AS ArrivalNights,
+    SUM(CAST(adults AS INT64)) AS Adults,
+    SUM(CAST(children AS INT64)) AS Children
+  FROM ${ref("stg_booked_reservations")}
+  WHERE booking_status NOT IN ('Cancelled', 'No Show')
+    AND arrival_date IS NOT NULL
+  GROUP BY arrival_date
+),
+
+departure_metrics AS (
+  SELECT
+    departure_date AS DepartureDate,
+    COUNT(DISTINCT confirmation_number) AS Departures,
+    SUM(CAST(nights AS INT64)) AS DepartureNights
+  FROM ${ref("stg_booked_reservations")}
+  WHERE booking_status NOT IN ('Cancelled', 'No Show')
+    AND departure_date IS NOT NULL
+  GROUP BY departure_date
+),
+
+comp_metrics AS (
+  SELECT
+    stay_date AS Date,
+    SUM(CASE WHEN market_segment = 'COMP' THEN CAST(rooms_sold AS INT64) ELSE 0 END) AS CompReservations
+  FROM ${ref("stg_revenue_segment")}
+  GROUP BY stay_date
+)
+
+SELECT
+  CAST(FORMAT_DATE('%Y%m%d', o.Date) AS STRING) AS DateKey,
+  316 AS TotalRooms,
+  o.RoomsAvailable,
+  0 AS OOORooms,
+  o.RoomsSold,
+  o.RoomsSold - COALESCE(c.CompReservations, 0) AS RoomsSold_ExcludingCompAndHouse,
+  o.RoomsSold AS SoldRooms_WithoutGroup,
+  o.RoomsSold AS TotalRoomsSoldAllocated,
+  COALESCE(a.Arrivals, 0) AS Arrivals,
+  COALESCE(d.Departures, 0) AS Departures,
+  o.RoomsSold - COALESCE(a.Arrivals, 0) AS StayOvers,
+  o.RoomsSold AS GuaranteedReservations,
+  0 AS NonGuaranteedReservations,
+  COALESCE(a.Adults, 0) AS Adults,
+  COALESCE(a.Children, 0) AS Children,
+  COALESCE(a.Adults, 0) + COALESCE(a.Children, 0) AS TotalGuests,
+  o.RoomRevenue AS TotalRevenue,
+  o.RoomRevenue AS ConfirmedRevenue,
+  0.0 AS GroupConfirmedRevenue,
+  o.RoomRevenue AS TransientConfirmedRevenue,
+  o.ADR,
+  SAFE_DIVIDE(o.RoomRevenue - (COALESCE(c.CompReservations, 0) * o.ADR), NULLIF(o.RoomsSold - COALESCE(c.CompReservations, 0), 0)) AS ADR_ExcludingCompAndHouse,
+  o.Occupancy AS Occupancy_IncludingOOO,
+  o.Occupancy AS Occupancy_ExcludingOOO,
+  SAFE_DIVIDE(o.RoomsSold - COALESCE(c.CompReservations, 0), NULLIF(o.RoomsAvailable, 0)) AS Occupancy_IncludingOOO_ExcludingComp,
+  o.Occupancy AS Occupancy_ExcludingOOO_IncludingComp,
+  o.RevPAR AS RevPAR_WithOOO,
+  o.RevPAR AS RevPAR_WithoutOOO,
+  0 AS GroupAllocations,
+  0 AS GroupRoomsPickedUp,
+  COALESCE(c.CompReservations, 0) AS CompReservations,
+  0 AS DayUseRooms,
+  0 AS DayUseGroupRooms
+
+FROM occupancy_metrics o
+LEFT JOIN arrival_metrics a ON o.Date = a.ArrivalDate
+LEFT JOIN departure_metrics d ON o.Date = d.DepartureDate
+LEFT JOIN comp_metrics c ON o.Date = c.Date
+
+WHERE o.Date >= DATE_SUB(CURRENT_DATE(), INTERVAL 2 YEAR)
+  AND o.Date <= DATE_ADD(CURRENT_DATE(), INTERVAL 1 YEAR)

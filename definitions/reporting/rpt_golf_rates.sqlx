@@ -1,0 +1,203 @@
+config {
+  type: "view",
+  schema: "hospitality_reporting",
+  name: "rpt_golf_rates",
+  description: "Golf rates dashboard - matches v_Golf_Rates_Dashboard exactly."
+}
+
+WITH pricing_calendar AS (
+  SELECT
+    date_day AS Date,
+    EXTRACT(YEAR FROM date_day) AS Year,
+    EXTRACT(MONTH FROM date_day) AS Month,
+    FORMAT_DATE('%B', date_day) AS Month_Name,
+    EXTRACT(DAY FROM date_day) AS Day,
+    FORMAT_DATE('%A', date_day) AS Day_Name,
+    
+    CASE
+      WHEN (EXTRACT(MONTH FROM date_day) = 9 AND EXTRACT(DAY FROM date_day) >= 15) THEN 'Low Season'
+      WHEN (EXTRACT(MONTH FROM date_day) = 1 AND EXTRACT(DAY FROM date_day) >= 16) THEN 'Peak Season'
+      WHEN (EXTRACT(MONTH FROM date_day) IN (2, 3, 4)) THEN 'Peak Season'
+      WHEN (EXTRACT(MONTH FROM date_day) IN (10, 11, 12)) THEN 'Mid Season'
+      WHEN (EXTRACT(MONTH FROM date_day) = 1 AND EXTRACT(DAY FROM date_day) <= 15) THEN 'Mid Season'
+      WHEN (EXTRACT(MONTH FROM date_day) IN (5, 6, 7, 8)) THEN 'Mid Season' 
+      ELSE 'Undefined Season'
+    END AS Season,
+    
+    CASE
+      WHEN (EXTRACT(MONTH FROM date_day) = 9 AND EXTRACT(DAY FROM date_day) >= 15) THEN 125.0
+      WHEN (EXTRACT(MONTH FROM date_day) = 1 AND EXTRACT(DAY FROM date_day) >= 16) THEN 200.0
+      WHEN (EXTRACT(MONTH FROM date_day) IN (2, 3, 4)) THEN 200.0
+      WHEN (EXTRACT(MONTH FROM date_day) IN (10, 11, 12)) THEN 150.0
+      WHEN (EXTRACT(MONTH FROM date_day) = 1 AND EXTRACT(DAY FROM date_day) <= 15) THEN 150.0
+      WHEN (EXTRACT(MONTH FROM date_day) IN (5, 6, 7, 8)) THEN 150.0
+      ELSE NULL
+    END AS Rate_Per_Bedroom_Min,
+    
+    CASE
+      WHEN (EXTRACT(MONTH FROM date_day) = 9 AND EXTRACT(DAY FROM date_day) >= 15) THEN 125.0
+      WHEN (EXTRACT(MONTH FROM date_day) = 1 AND EXTRACT(DAY FROM date_day) >= 16) THEN 200.0
+      WHEN (EXTRACT(MONTH FROM date_day) IN (2, 3, 4)) THEN 200.0
+      WHEN (EXTRACT(MONTH FROM date_day) IN (10, 11, 12)) THEN 165.0
+      WHEN (EXTRACT(MONTH FROM date_day) = 1 AND EXTRACT(DAY FROM date_day) <= 15) THEN 165.0
+      WHEN (EXTRACT(MONTH FROM date_day) IN (5, 6, 7, 8)) THEN 165.0
+      ELSE NULL
+    END AS Rate_Per_Bedroom_Max,
+    
+    CASE
+      WHEN (EXTRACT(MONTH FROM date_day) = 9 AND EXTRACT(DAY FROM date_day) >= 15) THEN '$125'
+      WHEN (EXTRACT(MONTH FROM date_day) = 1 AND EXTRACT(DAY FROM date_day) >= 16) THEN '$200'
+      WHEN (EXTRACT(MONTH FROM date_day) IN (2, 3, 4)) THEN '$200'
+      WHEN (EXTRACT(MONTH FROM date_day) IN (10, 11, 12)) THEN '$150 - $165'
+      WHEN (EXTRACT(MONTH FROM date_day) = 1 AND EXTRACT(DAY FROM date_day) <= 15) THEN '$150 - $165'
+      WHEN (EXTRACT(MONTH FROM date_day) IN (5, 6, 7, 8)) THEN '$150 - $165'
+      ELSE 'Contact Revenue Team'
+    END AS Rate_Display_Base
+    
+  FROM UNNEST(GENERATE_DATE_ARRAY(CURRENT_DATE(), DATE_ADD(CURRENT_DATE(), INTERVAL 365 DAY))) AS date_day
+),
+
+holidays AS (
+  SELECT 
+    Date,
+    Event_Name AS Holiday_Name
+  FROM ${ref("Dim_Events_Calendar")}
+  WHERE Event_Type = 'Holiday'
+    AND Date BETWEEN CURRENT_DATE() AND DATE_ADD(CURRENT_DATE(), INTERVAL 365 DAY)
+),
+
+unit_types AS (
+  SELECT
+    RoomTypeCode,
+    RoomTypeName,
+    RoomTypeCategory,
+    BedroomType_RolledUp,
+    UnitCategory,
+    CASE
+      WHEN RoomTypeCategory = 'Flat' THEN 4
+      WHEN RoomTypeCategory = 'Villa' AND BedroomType_RolledUp LIKE '2 Bedroom%' THEN 2
+      WHEN RoomTypeCategory = 'Villa' AND BedroomType_RolledUp LIKE '4 Bedroom%' THEN 4
+      WHEN RoomTypeCategory = 'House' AND RoomTypeName LIKE '%5 Bedroom%' THEN 5
+      WHEN RoomTypeCategory = 'House' AND RoomTypeName LIKE '%6 Bedroom%' THEN 6
+      WHEN RoomTypeCategory = 'House' AND RoomTypeName LIKE '%7 Bedroom%' THEN 7
+      WHEN RoomTypeCategory = 'House' AND RoomTypeName LIKE '%8 Bedroom%' THEN 8
+      WHEN RoomTypeCategory = 'House' AND RoomTypeName LIKE '%9 Bedroom%' THEN 9
+      WHEN RoomTypeCategory = 'House' AND RoomTypeName LIKE '%10 Bedroom%' THEN 10
+      WHEN RoomTypeCategory = 'House' AND RoomTypeName LIKE '%11 Bedroom%' THEN 11
+      ELSE NULL
+    END AS Bedroom_Count
+  FROM ${ref("Dim_RoomType")}
+  WHERE RoomTypeCode != 'NONE'
+),
+
+occupancy_data AS (
+  SELECT
+    Date,
+    RoomTypeCode,
+    RoomsAvailable,
+    RoomsSold,
+    RoomRevenue,
+    ADR,
+    Occupancy,
+    RevPAR_Without_OOO,
+    RevPAR_With_OOO,
+    (RoomsAvailable - RoomsSold) AS RoomsRemaining
+  FROM ${ref("Fact_Occupancy_Snapshot")}
+  WHERE Date >= CURRENT_DATE()
+    AND Date <= DATE_ADD(CURRENT_DATE(), INTERVAL 365 DAY)
+)
+
+SELECT
+  p.Date,
+  p.Year,
+  p.Month,
+  p.Month_Name,
+  p.Day,
+  p.Day_Name,
+  p.Season,
+  
+  h.Holiday_Name,
+  CASE WHEN h.Holiday_Name IS NOT NULL THEN TRUE ELSE FALSE END AS Is_Holiday,
+  
+  CASE 
+    WHEN h.Holiday_Name IS NOT NULL THEN CONCAT('HOLIDAY: ', h.Holiday_Name, ' - Contact Revenue Team')
+    WHEN p.Season = 'Undefined Season' THEN 'Contact Revenue Team'
+    ELSE NULL
+  END AS Pricing_Note,
+  
+  u.RoomTypeCode,
+  u.RoomTypeName,
+  u.RoomTypeCategory,
+  u.BedroomType_RolledUp,
+  u.UnitCategory,
+  u.Bedroom_Count,
+
+  p.Rate_Per_Bedroom_Min,
+  p.Rate_Per_Bedroom_Max,
+  
+  CASE 
+    WHEN h.Holiday_Name IS NOT NULL THEN 'Contact Revenue Team'
+    ELSE p.Rate_Display_Base
+  END AS Rate_Display,
+  
+  CASE 
+    WHEN h.Holiday_Name IS NOT NULL THEN NULL
+    WHEN p.Rate_Per_Bedroom_Min IS NOT NULL AND u.Bedroom_Count IS NOT NULL 
+    THEN p.Rate_Per_Bedroom_Min * u.Bedroom_Count
+    ELSE NULL
+  END AS Total_Price_Min,
+  
+  CASE 
+    WHEN h.Holiday_Name IS NOT NULL THEN NULL
+    WHEN p.Rate_Per_Bedroom_Max IS NOT NULL AND u.Bedroom_Count IS NOT NULL 
+    THEN p.Rate_Per_Bedroom_Max * u.Bedroom_Count
+    ELSE NULL
+  END AS Total_Price_Max,
+  
+  CASE 
+    WHEN h.Holiday_Name IS NOT NULL THEN 'Contact Revenue Team'
+    WHEN p.Rate_Per_Bedroom_Min IS NOT NULL AND u.Bedroom_Count IS NOT NULL THEN
+      CASE
+        WHEN p.Rate_Per_Bedroom_Min = p.Rate_Per_Bedroom_Max THEN
+          CONCAT('$', CAST(CAST(p.Rate_Per_Bedroom_Min * u.Bedroom_Count AS INT64) AS STRING))
+        ELSE
+          CONCAT('$', CAST(CAST(p.Rate_Per_Bedroom_Min * u.Bedroom_Count AS INT64) AS STRING), 
+                 ' - $', CAST(CAST(p.Rate_Per_Bedroom_Max * u.Bedroom_Count AS INT64) AS STRING))
+      END
+    ELSE 'Contact Revenue Team'
+  END AS Total_Price_Display,
+  
+  o.RoomsAvailable,
+  o.RoomsSold,
+  o.RoomsRemaining,
+  
+  CASE 
+    WHEN o.RoomsSold >= o.RoomsAvailable THEN 1.0
+    WHEN o.RoomsAvailable > 0 THEN ROUND(CAST(o.RoomsSold AS FLOAT64) / CAST(o.RoomsAvailable AS FLOAT64), 3)
+    ELSE NULL
+  END AS Occupancy_Pct,
+  
+  o.RoomRevenue AS Revenue_OTB,
+  o.ADR,
+  o.RevPAR_Without_OOO,
+  
+  CASE
+    WHEN o.RoomsRemaining IS NULL THEN 'No Data'
+    WHEN o.RoomsRemaining <= 0 THEN 'Sold Out'
+    WHEN o.RoomsRemaining <= 2 THEN 'Low Availability'
+    WHEN o.RoomsRemaining > 2 THEN 'Available'
+    ELSE 'Unknown'
+  END AS Availability_Status,
+  
+  CASE
+    WHEN o.RoomsRemaining IS NULL THEN 'Check with RM'
+    WHEN o.RoomsRemaining <= 0 THEN 'No'
+    ELSE 'Yes'
+  END AS Can_Book
+
+FROM occupancy_data o
+INNER JOIN pricing_calendar p ON o.Date = p.Date
+INNER JOIN unit_types u ON o.RoomTypeCode = u.RoomTypeCode
+LEFT JOIN holidays h ON p.Date = h.Date
+
+ORDER BY o.Date, u.RoomTypeCode

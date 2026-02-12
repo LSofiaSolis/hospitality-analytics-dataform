@@ -1,0 +1,42 @@
+config {
+  type: "view",
+  schema: "hospitality_reporting",
+  name: "rpt_school_breaks",
+  description: "School breaks - matches v_School_Breaks exactly."
+}
+
+WITH years AS (
+  SELECT year
+  FROM UNNEST(GENERATE_ARRAY(EXTRACT(YEAR FROM CURRENT_DATE()) - 1, 
+                             EXTRACT(YEAR FROM CURRENT_DATE()) + 2)) AS year
+),
+
+break_periods AS (
+  SELECT year, DATE(year, 3, 15) as start_date, DATE(year, 3, 28) as end_date, 'Spring Break' as event_name, 'School_Break' as event_type, 'High' as impact_level FROM years
+  UNION ALL
+  SELECT year, DATE(year, 6, 1), DATE(year, 8, 15), 'Summer Break', 'School_Break', 'High' FROM years
+  UNION ALL
+  SELECT year, DATE_SUB(DATE_ADD(DATE(year, 11, 1), INTERVAL (21 + MOD(12 - EXTRACT(DAYOFWEEK FROM DATE(year, 11, 1)), 7)) DAY), INTERVAL 2 DAY), DATE_ADD(DATE_ADD(DATE(year, 11, 1), INTERVAL (21 + MOD(12 - EXTRACT(DAYOFWEEK FROM DATE(year, 11, 1)), 7)) DAY), INTERVAL 2 DAY), 'Thanksgiving Break', 'School_Break', 'High' FROM years
+  UNION ALL
+  SELECT year, DATE(year, 12, 18), DATE(year + 1, 1, 6), 'Winter Break', 'School_Break', 'High' FROM years
+),
+
+expanded_dates AS (
+  SELECT
+    date,
+    event_name,
+    event_type,
+    impact_level
+  FROM break_periods,
+  UNNEST(GENERATE_DATE_ARRAY(start_date, end_date)) as date
+)
+
+SELECT
+  date as Date,
+  event_name as Event_Name,
+  event_type as Event_Type,
+  impact_level as Impact_Level,
+  TRUE as Is_Peak_Season
+FROM expanded_dates
+WHERE date >= DATE_SUB(CURRENT_DATE(), INTERVAL 365 DAY)
+ORDER BY date

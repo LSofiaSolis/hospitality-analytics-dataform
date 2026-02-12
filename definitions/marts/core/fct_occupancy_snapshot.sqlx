@@ -1,0 +1,22 @@
+config {
+type: "table",
+schema: "hospitality_marts",
+name: "fct_occupancy_snapshot",
+description: "Combined occupancy from past and future data.",
+tags: ["marts", "daily", "occupancy"]
+}
+SELECT
+date,
+room_type_code,
+room_type_name,
+rooms_available,
+rooms_sold,
+room_revenue,
+adr,
+occupancy,
+revpar_without_ooo,
+revpar_with_ooo,
+source_type,
+_loaded_at
+FROM ${ref("stg_occupancy")}
+WHERE date IS NOT NULL

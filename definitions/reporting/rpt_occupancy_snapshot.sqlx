@@ -1,0 +1,17 @@
+config {
+  type: "view",
+  schema: "hospitality_reporting",
+  name: "rpt_occupancy_snapshot",
+  description: "Occupancy snapshot - matches v_Fact_Occupancy_Snapshot exactly."
+}
+
+SELECT
+  'Luxury Vacation Property' AS Property_Name,
+  Date,
+  FORMAT_DATE('%A', Date) AS DayOfWeek,
+  RoomTypeCode,
+  RoomTypeName AS UnitType,
+  RoomsAvailable,
+  RoomsSold,
+  ROUND(Occupancy / 100, 4) AS OccupancyPct
+FROM ${ref("Fact_Occupancy_Snapshot")}

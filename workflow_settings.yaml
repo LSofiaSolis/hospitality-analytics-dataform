@@ -1,0 +1,4 @@
+defaultProject: your-gcp-project-id
+defaultDataset: hospitality_marts
+defaultAssertionDataset: hospitality_assertions
+dataformCoreVersion: 3.0.37

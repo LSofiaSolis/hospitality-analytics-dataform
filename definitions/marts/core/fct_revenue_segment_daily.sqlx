@@ -1,0 +1,21 @@
+config {
+type: "table",
+schema: "hospitality_marts",
+name: "fct_revenue_segment_daily"
+}
+SELECT
+CAST(stay_date AS DATE) AS StayDate,
+FORMAT_DATE('%A', CAST(stay_date AS DATE)) AS DayOfWeek,
+room_type_name AS RoomTypeName,
+room_type_code AS RoomTypeCode,
+room_type_category AS RoomTypeCategory,
+market_segment AS MarketSegmentName,
+source_code AS SourceCode,
+rate_plan AS RatePlanCode,
+FARM_FINGERPRINT(rate_plan) AS RatePlanID,
+CAST(rooms_sold AS INT64) AS RoomsSold,
+CAST(revenue AS FLOAT64) AS Revenue,
+SAFE_DIVIDE(CAST(revenue AS FLOAT64), NULLIF(CAST(rooms_sold AS INT64), 0)) AS ADR,
+CAST(occupancy AS FLOAT64) AS Occupancy
+FROM ${ref("stg_revenue_segment")}
+WHERE stay_date IS NOT NULL

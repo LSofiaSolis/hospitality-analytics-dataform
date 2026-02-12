@@ -1,0 +1,9 @@
+config {
+  type: "assertion",
+  name: "assert_pickup_nights_not_negative",
+  description: "Ensures pickup nights are never negative."
+}
+
+SELECT *
+FROM ${ref("fct_pickup_daily")}
+WHERE pickup_nights < 0

@@ -1,0 +1,18 @@
+config {
+  type: "view",
+  schema: "hospitality_marts",
+  name: "dim_guest",
+  description: "Guest dimension - passthrough from legacy.",
+  tags: ["marts", "dimension", "core"]
+}
+
+SELECT
+  GuestID as guest_id,
+  GuestName as guest_name,
+  FirstName as first_name,
+  LastName as last_name,
+  FirstStay as first_stay,
+  LastStay as last_stay,
+  CreatedDate as created_date
+
+FROM ${ref("Dim_Guest")}

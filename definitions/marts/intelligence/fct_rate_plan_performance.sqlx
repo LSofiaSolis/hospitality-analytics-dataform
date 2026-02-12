@@ -1,0 +1,83 @@
+config {
+  type: "table",
+  schema: "hospitality_marts",
+  name: "fct_rate_plan_performance",
+  description: "Rate plan YoY performance analysis.",
+  tags: ["marts", "intelligence", "pricing", "yoy"]
+}
+
+WITH yearly_metrics AS (
+  SELECT
+    rate_code as rate_plan_code,
+    EXTRACT(YEAR FROM arrival_date) as year,
+    COUNT(*) as bookings,
+    SUM(CASE WHEN booking_status IN ('ARRIVAL', 'IN HOUSE', 'CHECKED OUT') THEN 1 ELSE 0 END) as completed,
+    SUM(CASE WHEN booking_status = 'CANCELLED' THEN 1 ELSE 0 END) as cancelled,
+    SUM(nights) as unit_nights,
+    SUM(total_revenue) as revenue,
+    AVG(adr) as adr
+  FROM ${ref("stg_booked_reservations")}
+  GROUP BY 1, 2
+),
+
+pivoted AS (
+  SELECT
+    rate_plan_code,
+    MAX(CASE WHEN year = 2024 THEN bookings END) as bookings_2024,
+    MAX(CASE WHEN year = 2024 THEN completed END) as completed_2024,
+    MAX(CASE WHEN year = 2024 THEN cancelled END) as cancelled_2024,
+    MAX(CASE WHEN year = 2024 THEN unit_nights END) as unit_nights_2024,
+    MAX(CASE WHEN year = 2024 THEN revenue END) as revenue_2024,
+    MAX(CASE WHEN year = 2024 THEN adr END) as adr_2024,
+    MAX(CASE WHEN year = 2025 THEN bookings END) as bookings_2025,
+    MAX(CASE WHEN year = 2025 THEN completed END) as completed_2025,
+    MAX(CASE WHEN year = 2025 THEN cancelled END) as cancelled_2025,
+    MAX(CASE WHEN year = 2025 THEN unit_nights END) as unit_nights_2025,
+    MAX(CASE WHEN year = 2025 THEN revenue END) as revenue_2025,
+    MAX(CASE WHEN year = 2025 THEN adr END) as adr_2025,
+    MAX(CASE WHEN year = 2026 THEN bookings END) as bookings_2026_on_books,
+    MAX(CASE WHEN year = 2026 THEN unit_nights END) as unit_nights_2026_on_books,
+    MAX(CASE WHEN year = 2026 THEN revenue END) as revenue_2026_on_books,
+    MAX(CASE WHEN year = 2026 THEN adr END) as adr_2026_on_books
+  FROM yearly_metrics
+  GROUP BY 1
+),
+
+with_calcs AS (
+  SELECT
+    *,
+    SAFE_DIVIDE(cancelled_2024, bookings_2024) as cancellation_rate_2024,
+    SAFE_DIVIDE(cancelled_2025, bookings_2025) as cancellation_rate_2025,
+    SAFE_DIVIDE(bookings_2025, SUM(bookings_2025) OVER()) as market_share_2025_pct,
+    SAFE_DIVIDE(revenue_2025, SUM(revenue_2025) OVER()) as revenue_share_2025_pct,
+    bookings_2025 - bookings_2024 as bookings_change_25vs24,
+    SAFE_DIVIDE(bookings_2025 - bookings_2024, bookings_2024) as bookings_growth_pct_25vs24,
+    revenue_2025 - revenue_2024 as revenue_change_25vs24,
+    SAFE_DIVIDE(revenue_2025 - revenue_2024, revenue_2024) as revenue_growth_pct_25vs24,
+    adr_2025 - adr_2024 as adr_change_25vs24,
+    SAFE_DIVIDE(adr_2025 - adr_2024, adr_2024) as adr_growth_pct_25vs24
+  FROM pivoted
+)
+
+SELECT
+  *,
+  CASE
+    WHEN revenue_growth_pct_25vs24 > 0.2 AND market_share_2025_pct > 0.05 THEN 'Star Performer'
+    WHEN revenue_growth_pct_25vs24 > 0.1 THEN 'Growing'
+    WHEN revenue_growth_pct_25vs24 > -0.1 THEN 'Stable'
+    WHEN revenue_growth_pct_25vs24 > -0.2 THEN 'Declining'
+    ELSE 'Watch'
+  END as performance_rating_2025,
+  CASE
+    WHEN revenue_growth_pct_25vs24 > 0.1 THEN 'Up'
+    WHEN revenue_growth_pct_25vs24 < -0.1 THEN 'Down'
+    ELSE 'Flat'
+  END as trend_25vs24,
+  CASE
+    WHEN revenue_growth_pct_25vs24 > 0.2 THEN 'Consider rate increase'
+    WHEN revenue_growth_pct_25vs24 < -0.2 THEN 'Review pricing strategy'
+    WHEN cancellation_rate_2025 > 0.3 THEN 'Investigate high cancellations'
+    ELSE 'Maintain current strategy'
+  END as recommended_action
+FROM with_calcs
+WHERE rate_plan_code IS NOT NULL

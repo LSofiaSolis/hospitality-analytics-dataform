@@ -1,0 +1,25 @@
+config {
+  type: "view",
+  schema: "hospitality_marts",
+  name: "dim_room_type",
+  description: "Room type dimension with all attributes.",
+  tags: ["marts", "dimension", "core"]
+}
+
+SELECT
+  RoomTypeID as room_type_id,
+  RoomTypeCode as room_type_code,
+  RoomTypeName as room_type_name,
+  RoomTypeCategory as room_type_category,
+  BedroomType_RolledUp as bedroom_type_rolled_up,
+  BedroomType_Detail as bedroom_type_detail,
+  QI as quality_index,
+  ViewCategory as view_category,
+  ADAFlag as is_ada,
+  TheaterFlag as has_theater,
+  IsPremium as is_premium,
+  UnitCategory as unit_category,
+  Sleep_Capacity as sleep_capacity,
+  CreatedDate as created_date
+
+FROM ${ref("Dim_RoomType")}

@@ -1,0 +1,45 @@
+config {
+  type: "table",
+  schema: "hospitality_marts",
+  name: "fct_guest_ltv_segments",
+  description: "Guest LTV segmentation with recommended actions.",
+  tags: ["marts", "intelligence", "guest", "marketing"]
+}
+
+WITH guest_segments AS (
+  SELECT
+    CASE
+      WHEN TotalRevenue >= 50000 AND TrueRepeatVisits >= 5 THEN 'VIP'
+      WHEN TrueRepeatVisits >= 3 THEN 'Loyal'
+      WHEN TrueRepeatVisits = 2 THEN 'Growing'
+      WHEN TrueRepeatVisits = 1 AND DaysSinceLastStay > 365 THEN 'At Risk'
+      WHEN TotalStays = 1 THEN 'New'
+      WHEN DaysSinceLastStay > 730 THEN 'Lapsed'
+      ELSE 'Active'
+    END as guest_segment,
+    *
+  FROM ${ref("Fact_Guest_Metrics_Lifetime")}
+)
+
+SELECT
+  guest_segment,
+  COUNT(*) as guest_count,
+  SUM(TotalRevenue) as total_lifetime_revenue,
+  AVG(TotalRevenue) as avg_lifetime_value,
+  AVG(TotalRevenue / NULLIF(TotalStays, 0)) as avg_revenue_per_stay,
+  AVG(ADR_Computed) as avg_adr,
+  AVG(TotalStays) as avg_stays,
+  AVG(CASE WHEN TotalStays > 0 THEN (TotalStays - CompletedStays) / TotalStays ELSE 0 END) as avg_cancellation_rate,
+  AVG(DaysSinceLastStay) as avg_days_since_last_visit,
+  CASE
+    WHEN guest_segment = 'VIP' THEN 'Personal outreach, exclusive offers, recognition program'
+    WHEN guest_segment = 'Loyal' THEN 'Loyalty rewards, early access, referral program'
+    WHEN guest_segment = 'Growing' THEN 'Nurture with personalized offers, upgrade opportunities'
+    WHEN guest_segment = 'At Risk' THEN 'Win-back campaign, feedback request, special offer'
+    WHEN guest_segment = 'New' THEN 'Welcome series, post-stay follow-up, encourage second visit'
+    WHEN guest_segment = 'Lapsed' THEN 'Re-engagement campaign, we miss you offer'
+    ELSE 'Standard engagement'
+  END as recommended_action
+
+FROM guest_segments
+GROUP BY 1

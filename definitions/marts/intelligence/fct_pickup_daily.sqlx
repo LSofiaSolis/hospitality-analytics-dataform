@@ -1,0 +1,46 @@
+config {
+  type: "table",
+  schema: "hospitality_marts",
+  name: "fct_pickup_daily",
+  description: "Daily pickup metrics aggregated by booking date, market segment, room type, and rate plan.",
+  tags: ["marts", "intelligence", "daily", "revenue"],
+  
+  assertions: {
+    nonNull: ["booking_date", "market_segment", "room_type_category"],
+    rowConditions: [
+      "pickup_nights >= 0",
+      "pickup_revenue >= 0"
+    ]
+  }
+}
+
+SELECT 
+  booking_date,
+  EXTRACT(YEAR FROM booking_date) as booking_year,
+  EXTRACT(MONTH FROM booking_date) as booking_month,
+  FORMAT_DATE('%A', booking_date) as booking_day_name,
+  EXTRACT(YEAR FROM arrival_date) as arrival_year,
+  EXTRACT(MONTH FROM arrival_date) as arrival_month,
+  FORMAT_DATE('%B', arrival_date) as arrival_month_name,
+  EXTRACT(QUARTER FROM arrival_date) as arrival_quarter,
+  market_segment,
+  room_type,
+  room_type_category,
+  rate_code as rate_plan,
+  
+  COUNTIF(booking_status IN ('ARRIVAL', 'IN HOUSE', 'CHECKED OUT', 'RESERVED')) as pickup_bookings,
+  SUM(CASE WHEN booking_status IN ('ARRIVAL', 'IN HOUSE', 'CHECKED OUT', 'RESERVED') THEN nights ELSE 0 END) as pickup_nights,
+  SUM(CASE WHEN booking_status IN ('ARRIVAL', 'IN HOUSE', 'CHECKED OUT', 'RESERVED') THEN total_revenue ELSE 0 END) as pickup_revenue,
+  
+  COUNTIF(booking_status = 'CANCELLED') as cancelled_bookings,
+  SUM(CASE WHEN booking_status = 'CANCELLED' THEN nights ELSE 0 END) as cancelled_nights,
+  SUM(CASE WHEN booking_status = 'CANCELLED' THEN total_revenue ELSE 0 END) as cancelled_revenue,
+  
+  COUNTIF(booking_status IN ('ARRIVAL', 'IN HOUSE', 'CHECKED OUT', 'RESERVED')) - COUNTIF(booking_status = 'CANCELLED') as net_bookings,
+  SUM(CASE WHEN booking_status IN ('ARRIVAL', 'IN HOUSE', 'CHECKED OUT', 'RESERVED') THEN nights ELSE 0 END) -
+    SUM(CASE WHEN booking_status = 'CANCELLED' THEN nights ELSE 0 END) as net_nights,
+  SUM(CASE WHEN booking_status IN ('ARRIVAL', 'IN HOUSE', 'CHECKED OUT', 'RESERVED') THEN total_revenue ELSE 0 END) -
+    SUM(CASE WHEN booking_status = 'CANCELLED' THEN total_revenue ELSE 0 END) as net_revenue
+
+FROM ${ref("stg_booked_reservations")}
+GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12

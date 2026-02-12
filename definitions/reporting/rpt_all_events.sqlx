@@ -1,0 +1,36 @@
+config {
+  type: "view",
+  schema: "hospitality_reporting",
+  name: "rpt_all_events",
+  description: "All events calendar - matches v_All_Events exactly."
+}
+
+SELECT
+  Date,
+  Event_Name,
+  Event_Type,
+  Impact_Level,
+  Is_Peak_Season
+FROM ${ref("Dim_Events_Calendar")}
+
+UNION ALL
+
+SELECT
+  Date,
+  Event_Name,
+  Event_Type,
+  Impact_Level,
+  Is_Peak_Season
+FROM ${ref("rpt_us_holidays")}
+
+UNION ALL
+
+SELECT
+  Date,
+  Event_Name,
+  Event_Type,
+  Impact_Level,
+  Is_Peak_Season
+FROM ${ref("rpt_school_breaks")}
+
+ORDER BY Date

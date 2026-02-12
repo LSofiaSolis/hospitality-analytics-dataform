@@ -1,0 +1,34 @@
+config {
+  type: "table",
+  schema: "hospitality_marts",
+  name: "fct_reservations"
+}
+
+SELECT
+  confirmation_number AS ConfirmationNumber,
+  external_confirmation_number AS ExternalConfirmationNumber,
+  po_number AS PONumber,
+  FARM_FINGERPRINT(COALESCE(guest_name, 'UNKNOWN')) AS GuestID,
+  FARM_FINGERPRINT(room_type) AS RoomTypeID,
+  FARM_FINGERPRINT(market_segment) AS MarketSegmentID,
+  FARM_FINGERPRINT(source) AS SourceID,
+  FARM_FINGERPRINT(rate_code) AS RatePlanID,
+  0 AS ReservationStatusID,
+  CAST(FORMAT_DATE('%Y%m%d', arrival_date) AS STRING) AS ArrivalDateKey,
+  CAST(FORMAT_DATE('%Y%m%d', departure_date) AS STRING) AS DepartureDateKey,
+  CAST(FORMAT_DATE('%Y%m%d', booking_date) AS STRING) AS BookingDateKey,
+  CAST(FORMAT_DATE('%Y%m%d', cancellation_date) AS STRING) AS CancellationDateKey,
+  company_name AS CompanyName,
+  booking_time AS BookingTime,
+  cancellation_time AS CancellationTime,
+  booked_by AS BookedBy,
+  CAST(adults AS INT64) AS Adults,
+  CAST(children AS INT64) AS Children,
+  CAST(nights AS INT64) AS Nights,
+  CAST(total_revenue AS FLOAT64) AS TotalRevenue,
+  CAST(adr AS FLOAT64) AS ADR,
+  CAST(average_room_rate AS FLOAT64) AS AverageRoomRate,
+  CURRENT_TIMESTAMP() AS CreatedDate,
+  rate_code AS RatePlanCode
+FROM ${ref("stg_booked_reservations")}
+WHERE confirmation_number IS NOT NULL

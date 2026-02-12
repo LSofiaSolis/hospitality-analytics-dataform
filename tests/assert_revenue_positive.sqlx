@@ -1,0 +1,9 @@
+config {
+  type: "assertion",
+  name: "assert_pickup_revenue_positive",
+  description: "Ensures pickup revenue is not negative."
+}
+
+SELECT *
+FROM ${ref("fct_pickup_daily")}
+WHERE pickup_revenue < 0

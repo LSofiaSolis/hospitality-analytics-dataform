@@ -1,0 +1,26 @@
+config {
+  type: "view",
+  schema: "hospitality_reporting",
+  name: "rpt_pickup_with_comparisons",
+  description: "Pickup with period comparisons for Looker Studio."
+}
+
+SELECT 
+  period_type as Period_Type,
+  booking_date as Booking_Date,
+  booking_day_name as Booking_Day_Name,
+  arrival_year as Arrival_Year,
+  arrival_month as Arrival_Month,
+  arrival_month_name as Arrival_Month_Name,
+  market_segment as Market_Segment,
+  room_type_category as Room_Type_Category,
+  rate_plan as Rate_Plan,
+  pickup_bookings as Pickup_Bookings,
+  pickup_nights as Pickup_Nights,
+  pickup_revenue as Pickup_Revenue,
+  cancelled_bookings as Cancelled_Bookings,
+  cancelled_nights as Cancelled_Nights,
+  cancelled_revenue as Cancelled_Revenue,
+  net_nights as Net_Nights,
+  net_revenue as Net_Revenue
+FROM ${ref("fct_pickup_with_comparisons")}

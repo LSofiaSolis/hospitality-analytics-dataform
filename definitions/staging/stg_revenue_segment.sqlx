@@ -1,0 +1,25 @@
+config {
+  type: "table",
+  schema: "hospitality_staging",
+  name: "stg_revenue_segment",
+  description: "Cleaned revenue segment summary data.",
+  tags: ["staging", "daily", "revenue"]
+}
+
+SELECT
+  CAST(`Stay Date` AS DATE) as stay_date,
+  TRIM(`Day Of Week`) as day_of_week,
+  TRIM(`Room Type Name`) as room_type_name,
+  UPPER(TRIM(`Room Type Code`)) as room_type_code,
+  TRIM(`Room Type Category`) as room_type_category,
+  COALESCE(NULLIF(UPPER(TRIM(`Market Segment`)), ''), 'UNKNOWN') as market_segment,
+  UPPER(TRIM(`Source Code`)) as source_code,
+  COALESCE(UPPER(TRIM(`Rate Plan`)), 'UNKNOWN') as rate_plan,
+  CAST(`Room Sold` AS INT64) as rooms_sold,
+  CAST(Revenue AS FLOAT64) as revenue,
+  CAST(ADR AS FLOAT64) as adr,
+  CAST(Occupancy AS FLOAT64) as occupancy,
+  CURRENT_TIMESTAMP() as _loaded_at
+
+FROM ${ref("hospitality_raw", "raw_revenue_segment_summary")}
+WHERE `Stay Date` IS NOT NULL

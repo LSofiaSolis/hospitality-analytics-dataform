@@ -1,0 +1,26 @@
+config {
+  type: "table",
+  schema: "hospitality_marts",
+  name: "fct_travel_agent_checkout"
+}
+
+SELECT
+  TRIM(iata_number) AS IATANumber,
+  TRIM(company_name) AS TravelAgent,
+  TRIM(address) AS Address,
+  TRIM(guest_name) AS GuestName,
+  TRIM(confirmation_number) AS ConfirmationNumber,
+  CAST(arrival_date AS DATE) AS ArrivalDate,
+  CAST(departure_date AS DATE) AS DepartureDate,
+  CAST(nights AS INT64) AS Nights,
+  TRIM(rate_plan) AS RatePlan,
+  CAST(total_revenue AS FLOAT64) AS TotalRevenue,
+  CAST(room_revenue AS FLOAT64) AS RoomRevenue,
+  CAST(package_revenue AS FLOAT64) AS PackageRevenue,
+  CAST(tax AS FLOAT64) AS Tax,
+  CAST(commission_rate AS FLOAT64) AS CommissionRate,
+  CAST(estimated_commission AS FLOAT64) AS EstimatedCommission,
+  TRIM(status) AS Status,
+  CURRENT_TIMESTAMP() AS LastRefreshed
+FROM ${ref("stg_travel_agent")}
+WHERE confirmation_number IS NOT NULL

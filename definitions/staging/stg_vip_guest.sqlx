@@ -1,0 +1,34 @@
+config {
+  type: "table",
+  schema: "hospitality_staging",
+  name: "stg_vip_guest",
+  description: "Cleaned VIP guest details.",
+  tags: ["staging", "weekly", "vip"]
+}
+
+SELECT
+  TRIM(`Guest Tier`) AS guest_tier,
+  TRIM(`Room Number`) AS room_number,
+  TRIM(`Room Type`) AS room_type,
+  TRIM(`Confirmation Number`) AS confirmation_number,
+  SAFE_CAST(Adults AS INT64) AS adults,
+  SAFE_CAST(Children AS INT64) AS children,
+  TRIM(`Guest Name`) AS guest_name,
+  SAFE_CAST(`Arrival Date` AS DATE) AS arrival_date,
+  `Arrival Time` AS arrival_time,
+  SAFE_CAST(`Departure Date` AS DATE) AS departure_date,
+  `Departure time` AS departure_time,
+  TRIM(`Reservation Status`) AS reservation_status,
+  TRIM(`Rate Plan`) AS rate_plan,
+  SAFE_CAST(Rate AS FLOAT64) AS rate,
+  SAFE_CAST(`Deposit Collected Until Date` AS FLOAT64)
+    AS deposit_collected_until_value,
+  SAFE_CAST(`Deposit Collected Today` AS FLOAT64)
+    AS deposit_collected_today,
+  SAFE_CAST(`Deposit Used` AS FLOAT64)
+    AS deposit_used,
+  TRIM(`Room Requests`) AS room_requests,
+  TRIM(`Stay Requests`) AS stay_requests,
+  CURRENT_TIMESTAMP() AS _loaded_at
+FROM ${ref("raw_vip_guest_details")}
+WHERE `Confirmation Number` IS NOT NULL

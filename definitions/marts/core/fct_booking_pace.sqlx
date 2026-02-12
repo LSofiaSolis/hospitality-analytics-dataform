@@ -1,0 +1,37 @@
+config {
+  type: "view",
+  schema: "hospitality_marts",
+  name: "fct_booking_pace",
+  description: "Booking pace with STLY comparisons.",
+  tags: ["marts", "core", "daily", "pace"]
+}
+
+SELECT
+  Snapshot_Date as snapshot_date,
+  Arrival_Month as arrival_month,
+  Year as year,
+  Month as month_name,
+  MarketSegmentID as market_segment_id,
+  Market_Segment_Name as market_segment_name,
+  Room_Type_Code as room_type_code,
+  Room_Type_Name as room_type_name,
+  Rooms_on_Books as rooms_on_books,
+  Revenue_on_Books as revenue_on_books,
+  ADR as adr,
+  Pickup_Yesterday_Rooms as pickup_yesterday_rooms,
+  Pickup_Yesterday_Revenue as pickup_yesterday_revenue,
+  Pickup_Last7Days_Rooms as pickup_7day_rooms,
+  Pickup_Last7Days_Revenue as pickup_7day_revenue,
+  Cancelled_Yesterday_Rooms as cancelled_yesterday_rooms,
+  Cancelled_Yesterday_Revenue as cancelled_yesterday_revenue,
+  Cancelled_Last7Days_Rooms as cancelled_7day_rooms,
+  Cancelled_Last7Days_Revenue as cancelled_7day_revenue,
+  Rooms_on_Books_LastYear as rooms_on_books_stly,
+  Revenue_on_Books_LastYear as revenue_on_books_stly,
+  Pickup_Last7Days_LastYear as pickup_7day_stly,
+  YoY_Change_Rooms as yoy_change_rooms,
+  YoY_Change_Percent as yoy_change_pct,
+  YoY_Pickup_Change_Rooms as yoy_pickup_change_rooms,
+  CreatedTimestamp as created_timestamp
+
+FROM ${ref("Fact_Booking_Pace_Daily_Snapshot")}

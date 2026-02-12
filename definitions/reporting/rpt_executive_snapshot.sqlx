@@ -1,0 +1,143 @@
+config {
+  type: "view",
+  schema: "hospitality_reporting",
+  name: "rpt_executive_snapshot",
+  description: "Executive revenue snapshot - matches v_Executive_Revenue_Snapshot exactly."
+}
+
+WITH rss_norm AS (
+  SELECT
+    DATE(`Stay Date`) AS StayDate,
+    `Room Type Code`       AS RoomTypeCode,
+    `Room Type Category`   AS RoomTypeCategory,
+    `Market Segment`       AS MarketSegment,
+    `Source Code`          AS SourceCode,
+    `Rate Plan`            AS RatePlan,
+    SAFE_CAST(Revenue AS FLOAT64)     AS RevenueVal,
+    SAFE_CAST(`Room Sold` AS INT64)   AS RoomsSoldVal
+  FROM ${ref("hospitality_raw", "raw_revenue_segment_summary")}
+  WHERE `Stay Date` IS NOT NULL
+    AND DATE(`Stay Date`) <= (
+      SELECT MAX(Date) FROM ${ref("Fact_Occupancy_Snapshot")}
+    )
+),
+
+base AS (
+  SELECT
+    StayDate,
+    RoomTypeCode, 
+    RoomTypeCategory, 
+    MarketSegment, 
+    SourceCode, 
+    RatePlan,
+    SUM(RevenueVal) AS TotalRevenue,
+    SUM(RoomsSoldVal) AS RoomsSold_Res
+  FROM rss_norm
+  WHERE StayDate IS NOT NULL
+  GROUP BY StayDate, RoomTypeCode, RoomTypeCategory, MarketSegment, SourceCode, RatePlan
+),
+
+occ_by_roomtype AS (
+  SELECT
+    occ.Date,
+    occ.RoomTypeCode,
+    q.`Unit Type` AS RoomTypeCategory,
+    q.QI,
+    occ.RoomsAvailable,
+    occ.RoomsSold,
+    occ.RoomRevenue,
+    occ.ADR,
+    occ.Occupancy,
+    occ.RevPAR_With_OOO
+  FROM ${ref("Fact_Occupancy_Snapshot")} occ
+  LEFT JOIN ${ref("QualityIndex")} q
+    ON TRIM(UPPER(occ.RoomTypeCode)) = TRIM(UPPER(q.`Unit Code`))
+  WHERE q.`Unit Type` IS NOT NULL
+)
+
+SELECT
+  b.StayDate,
+  FORMAT_DATE('%A', b.StayDate) AS DayOfWeek,
+  b.RoomTypeCode,
+  b.RoomTypeCategory,
+  b.RoomTypeCategory AS UnitType,
+  occ.QI,
+  b.MarketSegment,
+  b.SourceCode,
+  b.RatePlan,
+  
+  CASE 
+    WHEN b.MarketSegment = 'COMP' 
+      OR b.RatePlan LIKE '%COMP%' 
+      OR b.SourceCode = 'COMP'
+      THEN TRUE
+    ELSE FALSE
+  END AS IsComp,
+  
+  occ.RoomsAvailable,
+  occ.RoomsSold,
+  ROUND(occ.Occupancy / 100, 4) AS Occupancy_Rate,
+  occ.ADR,
+  occ.RevPAR_With_OOO AS RevPar,
+  
+  SUM(occ.RoomsAvailable) OVER (
+    PARTITION BY b.StayDate, b.RoomTypeCategory
+  ) AS Category_RoomsAvailable_Total,
+  
+  SUM(occ.RoomsSold) OVER (
+    PARTITION BY b.StayDate, b.RoomTypeCategory
+  ) AS Category_RoomsSold_Total,
+  
+  ROUND(
+    SAFE_DIVIDE(
+      SUM(occ.RoomsSold) OVER (PARTITION BY b.StayDate, b.RoomTypeCategory),
+      SUM(occ.RoomsAvailable) OVER (PARTITION BY b.StayDate, b.RoomTypeCategory)
+    ),
+  4) AS Category_Occupancy_Rate,
+  
+  SUM(occ.RoomRevenue) OVER (
+    PARTITION BY b.StayDate, b.RoomTypeCategory
+  ) AS Category_Revenue_Total,
+  
+  ROUND(
+    SAFE_DIVIDE(
+      SUM(occ.RoomRevenue) OVER (PARTITION BY b.StayDate, b.RoomTypeCategory),
+      SUM(occ.RoomsSold) OVER (PARTITION BY b.StayDate, b.RoomTypeCategory)
+    ),
+  2) AS Category_ADR,
+  
+  ROUND(
+    SAFE_DIVIDE(
+      SUM(occ.RoomRevenue) OVER (PARTITION BY b.StayDate, b.RoomTypeCategory),
+      SUM(occ.RoomsAvailable) OVER (PARTITION BY b.StayDate, b.RoomTypeCategory)
+    ),
+  2) AS Category_RevPAR,
+  
+  b.TotalRevenue,
+  b.RoomsSold_Res,
+  ROUND(SAFE_DIVIDE(b.TotalRevenue, b.RoomsSold_Res), 2) AS ADR_Res,
+  
+  ROUND(
+    SAFE_DIVIDE(
+      b.TotalRevenue,
+      SUM(b.TotalRevenue) OVER (PARTITION BY b.StayDate, b.RoomTypeCategory)
+    ),
+  4) AS RevenueShare_Rate,
+  
+  ROUND(
+    SAFE_DIVIDE(
+      occ.RoomsSold,
+      SUM(occ.RoomsSold) OVER (PARTITION BY b.StayDate, b.RoomTypeCategory)
+    ),
+  4) AS MarketShare_Rate
+
+FROM base b
+
+LEFT JOIN occ_by_roomtype occ
+  ON occ.Date = b.StayDate
+ AND TRIM(UPPER(occ.RoomTypeCode)) = TRIM(UPPER(b.RoomTypeCode))
+
+WHERE b.RoomTypeCategory IS NOT NULL
+  AND UPPER(TRIM(b.RoomTypeCategory)) != 'NONE'
+
+ORDER BY b.StayDate DESC, b.RoomTypeCategory, b.RoomTypeCode, b.TotalRevenue DESC

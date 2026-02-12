@@ -1,0 +1,25 @@
+config {
+type: "table",
+schema: "hospitality_marts",
+name: "fct_daily_roomtype_snapshot",
+description: "Daily room type level metrics from occupancy.",
+tags: ["marts", "daily", "occupancy"]
+}
+SELECT
+FORMAT_DATE('%Y%m%d', Date) AS date_key,
+FARM_FINGERPRINT(RoomTypeCode) AS room_type_id,
+RoomTypeCode AS room_type_code,
+RoomTypeName AS room_type_name,
+SUM(RoomsAvailable) AS total_rooms,
+SUM(RoomsAvailable - RoomsSold) AS vacant_rooms,
+0 AS ooo_rooms,
+SUM(RoomsSold) AS rooms_sold,
+SUM(RoomRevenue) AS room_revenue,
+AVG(Occupancy) AS occupancy,
+SAFE_DIVIDE(SUM(RoomRevenue), SUM(RoomsSold)) AS adr,
+SAFE_DIVIDE(SUM(RoomRevenue), SUM(RoomsAvailable)) AS revpar_with_ooo,
+SAFE_DIVIDE(SUM(RoomRevenue), SUM(RoomsAvailable)) AS revpar_without_ooo,
+CURRENT_TIMESTAMP() AS _loaded_at
+FROM ${ref("Fact_Occupancy_Snapshot")}
+WHERE Date IS NOT NULL
+GROUP BY Date, RoomTypeCode, RoomTypeName

@@ -1,0 +1,48 @@
+config {
+  type: "table",
+  schema: "hospitality_marts",
+  name: "fct_pickup_with_comparisons",
+  description: "Pickup data with period comparison variants for Looker Studio.",
+  tags: ["marts", "intelligence", "daily", "dashboard"]
+}
+
+SELECT 'Current' as period_type, * FROM ${ref("fct_pickup_daily")}
+
+UNION ALL
+
+SELECT 
+  'Previous Period' as period_type,
+  DATE_ADD(booking_date, INTERVAL 1 DAY) as booking_date,
+  booking_year, booking_month, booking_day_name,
+  arrival_year, arrival_month, arrival_month_name, arrival_quarter,
+  market_segment, room_type, room_type_category, rate_plan,
+  pickup_bookings, pickup_nights, pickup_revenue,
+  cancelled_bookings, cancelled_nights, cancelled_revenue,
+  net_bookings, net_nights, net_revenue
+FROM ${ref("fct_pickup_daily")}
+
+UNION ALL
+
+SELECT 
+  'Prior Week' as period_type,
+  DATE_ADD(booking_date, INTERVAL 7 DAY) as booking_date,
+  booking_year, booking_month, booking_day_name,
+  arrival_year, arrival_month, arrival_month_name, arrival_quarter,
+  market_segment, room_type, room_type_category, rate_plan,
+  pickup_bookings, pickup_nights, pickup_revenue,
+  cancelled_bookings, cancelled_nights, cancelled_revenue,
+  net_bookings, net_nights, net_revenue
+FROM ${ref("fct_pickup_daily")}
+
+UNION ALL
+
+SELECT 
+  'STLY' as period_type,
+  DATE_ADD(booking_date, INTERVAL 1 YEAR) as booking_date,
+  booking_year, booking_month, booking_day_name,
+  arrival_year + 1 as arrival_year, arrival_month, arrival_month_name, arrival_quarter,
+  market_segment, room_type, room_type_category, rate_plan,
+  pickup_bookings, pickup_nights, pickup_revenue,
+  cancelled_bookings, cancelled_nights, cancelled_revenue,
+  net_bookings, net_nights, net_revenue
+FROM ${ref("fct_pickup_daily")}

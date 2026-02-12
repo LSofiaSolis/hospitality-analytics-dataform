@@ -1,0 +1,89 @@
+config {
+  type: "view",
+  schema: "hospitality_reporting",
+  name: "rpt_guest_ltv",
+  description: "Guest LTV segmentation - matches v_guest_ltv_segmentation exactly."
+}
+
+WITH guest_reservations AS (
+  SELECT 
+    r.GuestID,
+    g.GuestName,
+    r.ConfirmationNumber,
+    rs.StatusName,
+    arrival.Date AS ArrivalDate,
+    r.Nights,
+    r.TotalRevenue,
+    CASE WHEN rs.StatusName = 'CANCELLED' THEN 1 ELSE 0 END AS IsCancelled
+  FROM ${ref("Fact_Reservations")} r
+  JOIN ${ref("Dim_Guest")} g 
+    ON r.GuestID = g.GuestID
+  JOIN ${ref("Dim_ReservationStatus")} rs 
+    ON r.ReservationStatusID = rs.StatusID
+  JOIN ${ref("Dim_Date")} arrival 
+    ON r.ArrivalDateKey = arrival.DateKey
+),
+
+guest_metrics AS (
+  SELECT 
+    GuestID,
+    GuestName,
+    COUNTIF(StatusName NOT IN ('CANCELLED', 'NO SHOW')) AS CompletedStays,
+    SUM(CASE WHEN StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN Nights ELSE 0 END) AS TotalNights,
+    ROUND(SUM(CASE WHEN StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN TotalRevenue ELSE 0 END), 2) AS TotalRevenue,
+    COUNTIF(StatusName = 'CANCELLED') AS TotalCancellations,
+    ROUND(SAFE_DIVIDE(COUNTIF(StatusName = 'CANCELLED'), COUNT(*)) * 100, 1) AS CancellationRate,
+    MIN(CASE WHEN StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN ArrivalDate END) AS FirstStayDate,
+    MAX(CASE WHEN StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN ArrivalDate END) AS LastStayDate,
+    DATE_DIFF(CURRENT_DATE(), MAX(CASE WHEN StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN ArrivalDate END), DAY) AS DaysSinceLastVisit,
+    ROUND(SAFE_DIVIDE(
+      SUM(CASE WHEN StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN TotalRevenue ELSE 0 END),
+      NULLIF(SUM(CASE WHEN StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN Nights ELSE 0 END), 0)
+    ), 2) AS AvgADR
+  FROM guest_reservations
+  GROUP BY GuestID, GuestName
+  HAVING COUNTIF(StatusName NOT IN ('CANCELLED', 'NO SHOW')) >= 2
+),
+
+guest_segments AS (
+  SELECT 
+    *,
+    ROUND(SAFE_DIVIDE(TotalRevenue, NULLIF(CompletedStays, 0)), 2) AS RevenuePerStay,
+    SAFE_DIVIDE(
+      DATE_DIFF(LastStayDate, FirstStayDate, DAY),
+      NULLIF(CompletedStays - 1, 0)
+    ) AS AvgDaysBetweenVisits,
+    CASE 
+      WHEN TotalRevenue > 50000 AND DaysSinceLastVisit < 90 AND CancellationRate < 20 THEN 'VIP - Active & Reliable'
+      WHEN TotalRevenue > 50000 AND DaysSinceLastVisit < 90 AND CancellationRate >= 20 THEN 'VIP - Active BUT Risky'
+      WHEN TotalRevenue > 50000 AND DaysSinceLastVisit >= 90 THEN 'VIP - At Risk'
+      WHEN TotalRevenue > 20000 AND DaysSinceLastVisit < 120 THEN 'High Value - Active'
+      WHEN TotalRevenue > 20000 AND DaysSinceLastVisit >= 120 THEN 'High Value - At Risk'
+      WHEN CompletedStays >= 5 AND DaysSinceLastVisit < 180 THEN 'Loyal - Active'
+      WHEN CompletedStays >= 5 AND DaysSinceLastVisit >= 180 THEN 'Loyal - At Risk'
+      ELSE 'Standard'
+    END AS GuestSegment
+  FROM guest_metrics
+)
+
+SELECT 
+  GuestSegment,
+  COUNT(*) AS GuestCount,
+  ROUND(SUM(TotalRevenue), 2) AS TotalLifetimeRevenue,
+  ROUND(AVG(TotalRevenue), 2) AS AvgLifetimeValue,
+  ROUND(AVG(RevenuePerStay), 2) AS AvgRevenuePerStay,
+  ROUND(AVG(AvgADR), 2) AS AvgADR,
+  ROUND(AVG(CompletedStays), 1) AS AvgStays,
+  ROUND(AVG(CancellationRate), 1) AS AvgCancellationRate,
+  ROUND(AVG(DaysSinceLastVisit), 0) AS AvgDaysSinceLastVisit,
+  CASE 
+    WHEN GuestSegment LIKE '%At Risk%' THEN 'URGENT: Send personalized offer within 7 days'
+    WHEN GuestSegment LIKE '%Risky%' THEN 'Require deposits, monitor closely'
+    WHEN GuestSegment LIKE 'VIP%' THEN 'Proactive outreach - exclusive preview'
+    WHEN GuestSegment LIKE 'High Value%' THEN 'Upgrade offer for next stay'
+    WHEN GuestSegment LIKE 'Loyal%' THEN 'Loyalty rewards - free night after 10 stays'
+    ELSE 'Standard marketing'
+  END AS RecommendedAction
+FROM guest_segments
+GROUP BY GuestSegment
+ORDER BY TotalLifetimeRevenue DESC

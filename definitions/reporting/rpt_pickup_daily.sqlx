@@ -1,0 +1,30 @@
+config {
+  type: "view",
+  schema: "hospitality_reporting",
+  name: "rpt_pickup_daily",
+  description: "Pickup daily report for Looker Studio."
+}
+
+SELECT 
+  booking_date as Booking_Date,
+  booking_year as Booking_Year,
+  booking_month as Booking_Month,
+  booking_day_name as Booking_Day_Name,
+  arrival_year as Arrival_Year,
+  arrival_month as Arrival_Month,
+  arrival_month_name as Arrival_Month_Name,
+  arrival_quarter as Arrival_Quarter,
+  market_segment as Market_Segment,
+  room_type as Room_Type,
+  room_type_category as Room_Type_Category,
+  rate_plan as Rate_Plan,
+  pickup_bookings as Pickup_Bookings,
+  pickup_nights as Pickup_Nights,
+  pickup_revenue as Pickup_Revenue,
+  cancelled_bookings as Cancelled_Bookings,
+  cancelled_nights as Cancelled_Nights,
+  cancelled_revenue as Cancelled_Revenue,
+  net_bookings as Net_Bookings,
+  net_nights as Net_Nights,
+  net_revenue as Net_Revenue
+FROM ${ref("fct_pickup_daily")}

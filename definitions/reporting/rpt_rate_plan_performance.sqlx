@@ -1,0 +1,178 @@
+config {
+  type: "view",
+  schema: "hospitality_reporting",
+  name: "rpt_rate_plan_performance",
+  description: "Rate plan YoY performance - matches v_rate_plan_performance exactly."
+}
+
+WITH bookings_2024 AS (
+  SELECT 
+    rp.RatePlanCode,
+    COUNT(*) as TotalBookings,
+    SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN 1 ELSE 0 END) as CompletedBookings,
+    SUM(CASE WHEN rs.StatusName = 'CANCELLED' THEN 1 ELSE 0 END) as CancelledBookings,
+    SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN r.Nights ELSE 0 END) as UnitNights,
+    ROUND(SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN r.TotalRevenue ELSE 0 END), 2) as TotalRevenue,
+    ROUND(
+      SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN r.TotalRevenue ELSE 0 END) / 
+      NULLIF(SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN r.Nights ELSE 0 END), 0),
+    2) as ADR
+  FROM ${ref("Fact_Reservations")} r
+  JOIN ${ref("Dim_RatePlan")} rp ON r.RatePlanID = rp.RatePlanID
+  JOIN ${ref("Dim_ReservationStatus")} rs ON r.ReservationStatusID = rs.StatusID
+  JOIN ${ref("Dim_Date")} arrival ON r.ArrivalDateKey = arrival.DateKey
+  WHERE EXTRACT(YEAR FROM arrival.Date) = 2024
+  GROUP BY rp.RatePlanCode
+),
+
+bookings_2025 AS (
+  SELECT 
+    rp.RatePlanCode,
+    COUNT(*) as TotalBookings,
+    SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN 1 ELSE 0 END) as CompletedBookings,
+    SUM(CASE WHEN rs.StatusName = 'CANCELLED' THEN 1 ELSE 0 END) as CancelledBookings,
+    SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN r.Nights ELSE 0 END) as UnitNights,
+    ROUND(SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN r.TotalRevenue ELSE 0 END), 2) as TotalRevenue,
+    ROUND(
+      SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN r.TotalRevenue ELSE 0 END) / 
+      NULLIF(SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN r.Nights ELSE 0 END), 0),
+    2) as ADR
+  FROM ${ref("Fact_Reservations")} r
+  JOIN ${ref("Dim_RatePlan")} rp ON r.RatePlanID = rp.RatePlanID
+  JOIN ${ref("Dim_ReservationStatus")} rs ON r.ReservationStatusID = rs.StatusID
+  JOIN ${ref("Dim_Date")} arrival ON r.ArrivalDateKey = arrival.DateKey
+  WHERE EXTRACT(YEAR FROM arrival.Date) = 2025
+  GROUP BY rp.RatePlanCode
+),
+
+bookings_2026 AS (
+  SELECT 
+    rp.RatePlanCode,
+    COUNT(*) as TotalBookings,
+    SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN 1 ELSE 0 END) as CompletedBookings,
+    SUM(CASE WHEN rs.StatusName = 'CANCELLED' THEN 1 ELSE 0 END) as CancelledBookings,
+    SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN r.Nights ELSE 0 END) as UnitNights,
+    ROUND(SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN r.TotalRevenue ELSE 0 END), 2) as TotalRevenue,
+    ROUND(
+      SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN r.TotalRevenue ELSE 0 END) / 
+      NULLIF(SUM(CASE WHEN rs.StatusName NOT IN ('CANCELLED', 'NO SHOW') THEN r.Nights ELSE 0 END), 0),
+    2) as ADR
+  FROM ${ref("Fact_Reservations")} r
+  JOIN ${ref("Dim_RatePlan")} rp ON r.RatePlanID = rp.RatePlanID
+  JOIN ${ref("Dim_ReservationStatus")} rs ON r.ReservationStatusID = rs.StatusID
+  JOIN ${ref("Dim_Date")} arrival ON r.ArrivalDateKey = arrival.DateKey
+  WHERE EXTRACT(YEAR FROM arrival.Date) = 2026
+  GROUP BY rp.RatePlanCode
+),
+
+totals_2025 AS (
+  SELECT 
+    SUM(UnitNights) as TotalUnitNights,
+    SUM(TotalRevenue) as TotalRevenue
+  FROM bookings_2025
+),
+
+all_rate_plans AS (
+  SELECT RatePlanCode FROM bookings_2024
+  UNION DISTINCT
+  SELECT RatePlanCode FROM bookings_2025
+  UNION DISTINCT
+  SELECT RatePlanCode FROM bookings_2026
+)
+
+SELECT 
+  arp.RatePlanCode,
+  
+  COALESCE(b24.TotalBookings, 0) as Bookings_2024,
+  COALESCE(b24.CompletedBookings, 0) as Completed_2024,
+  COALESCE(b24.CancelledBookings, 0) as Cancelled_2024,
+  ROUND(COALESCE(b24.CancelledBookings, 0) / NULLIF(b24.TotalBookings, 0) * 100, 1) as CancellationRate_2024,
+  COALESCE(b24.UnitNights, 0) as UnitNights_2024,
+  COALESCE(b24.TotalRevenue, 0) as Revenue_2024,
+  COALESCE(b24.ADR, 0) as ADR_2024,
+  
+  COALESCE(b25.TotalBookings, 0) as Bookings_2025,
+  COALESCE(b25.CompletedBookings, 0) as Completed_2025,
+  COALESCE(b25.CancelledBookings, 0) as Cancelled_2025,
+  ROUND(COALESCE(b25.CancelledBookings, 0) / NULLIF(b25.TotalBookings, 0) * 100, 1) as CancellationRate_2025,
+  COALESCE(b25.UnitNights, 0) as UnitNights_2025,
+  COALESCE(b25.TotalRevenue, 0) as Revenue_2025,
+  COALESCE(b25.ADR, 0) as ADR_2025,
+  
+  ROUND(COALESCE(b25.UnitNights, 0) / NULLIF(t25.TotalUnitNights, 0) * 100, 1) as MarketShare_2025_Pct,
+  ROUND(COALESCE(b25.TotalRevenue, 0) / NULLIF(t25.TotalRevenue, 0) * 100, 1) as RevenueShare_2025_Pct,
+  
+  COALESCE(b26.TotalBookings, 0) as Bookings_2026_OnBooks,
+  COALESCE(b26.UnitNights, 0) as UnitNights_2026_OnBooks,
+  COALESCE(b26.TotalRevenue, 0) as Revenue_2026_OnBooks,
+  COALESCE(b26.ADR, 0) as ADR_2026_OnBooks,
+  
+  COALESCE(b25.TotalBookings, 0) - COALESCE(b24.TotalBookings, 0) as Bookings_Change_25vs24,
+  ROUND((COALESCE(b25.TotalBookings, 0) - COALESCE(b24.TotalBookings, 0)) / NULLIF(b24.TotalBookings, 0) * 100, 1) as Bookings_Growth_Pct_25vs24,
+  
+  COALESCE(b25.TotalRevenue, 0) - COALESCE(b24.TotalRevenue, 0) as Revenue_Change_25vs24,
+  ROUND((COALESCE(b25.TotalRevenue, 0) - COALESCE(b24.TotalRevenue, 0)) / NULLIF(b24.TotalRevenue, 0) * 100, 1) as Revenue_Growth_Pct_25vs24,
+  
+  COALESCE(b25.ADR, 0) - COALESCE(b24.ADR, 0) as ADR_Change_25vs24,
+  ROUND((COALESCE(b25.ADR, 0) - COALESCE(b24.ADR, 0)) / NULLIF(b24.ADR, 0) * 100, 1) as ADR_Growth_Pct_25vs24,
+  
+  CASE 
+    WHEN COALESCE(b25.TotalRevenue, 0) > 500000 
+      AND COALESCE(b25.CancelledBookings, 0) / NULLIF(b25.TotalBookings, 0) < 0.15
+      AND COALESCE(b25.ADR, 0) > 300
+      THEN 'A - Excellent'
+    WHEN COALESCE(b25.TotalRevenue, 0) > 250000 
+      AND COALESCE(b25.CancelledBookings, 0) / NULLIF(b25.TotalBookings, 0) < 0.20
+      AND COALESCE(b25.ADR, 0) > 250
+      THEN 'B - Good'
+    WHEN COALESCE(b25.TotalRevenue, 0) > 100000
+      AND COALESCE(b25.CancelledBookings, 0) / NULLIF(b25.TotalBookings, 0) < 0.25
+      THEN 'C - Average'
+    WHEN COALESCE(b25.CancelledBookings, 0) / NULLIF(b25.TotalBookings, 0) > 0.30
+      THEN 'D - High Cancellations'
+    WHEN COALESCE(b25.ADR, 0) < 200 AND arp.RatePlanCode NOT LIKE '%COMP%'
+      THEN 'D - Too Discounted'
+    ELSE 'C - Average'
+  END as PerformanceRating_2025,
+  
+  CASE 
+    WHEN b24.TotalRevenue IS NULL OR b24.TotalRevenue = 0 
+      THEN 'NEW Rate (started 2025)'
+    WHEN (COALESCE(b25.TotalRevenue, 0) - COALESCE(b24.TotalRevenue, 0)) / NULLIF(b24.TotalRevenue, 0) > 0.25 
+      THEN 'Strong Growth (+25%+)'
+    WHEN (COALESCE(b25.TotalRevenue, 0) - COALESCE(b24.TotalRevenue, 0)) / NULLIF(b24.TotalRevenue, 0) > 0.10 
+      THEN 'Growing (+10-25%)'
+    WHEN (COALESCE(b25.TotalRevenue, 0) - COALESCE(b24.TotalRevenue, 0)) / NULLIF(b24.TotalRevenue, 0) > 0 
+      THEN 'Slight Growth (0-10%)'
+    WHEN (COALESCE(b25.TotalRevenue, 0) - COALESCE(b24.TotalRevenue, 0)) / NULLIF(b24.TotalRevenue, 0) > -0.10
+      THEN 'Slight Decline (0-10%)'
+    WHEN (COALESCE(b25.TotalRevenue, 0) - COALESCE(b24.TotalRevenue, 0)) / NULLIF(b24.TotalRevenue, 0) > -0.25
+      THEN 'Declining (-10-25%)'
+    ELSE 'Major Decline (-25%+)'
+  END as Trend_25vs24,
+  
+  CASE 
+    WHEN COALESCE(b25.CancelledBookings, 0) / NULLIF(b25.TotalBookings, 0) > 0.30 
+      THEN 'MONITOR: high cancellations'
+    WHEN COALESCE(b25.ADR, 0) < 250 AND COALESCE(b25.TotalBookings, 0) > 100 AND arp.RatePlanCode NOT LIKE '%COMP%'
+      THEN 'ACTION: Test rate increase - demand is there'
+    WHEN (COALESCE(b25.TotalRevenue, 0) - COALESCE(b24.TotalRevenue, 0)) / NULLIF(b24.TotalRevenue, 0) < -0.25
+      THEN 'MONITOR: Investigate decline'
+    WHEN (COALESCE(b25.TotalRevenue, 0) - COALESCE(b24.TotalRevenue, 0)) / NULLIF(b24.TotalRevenue, 0) > 0.25
+      THEN 'SUCCESS: Keep promoting this rate!'
+    WHEN COALESCE(b25.TotalRevenue, 0) > 500000 AND COALESCE(b25.CancelledBookings, 0) / NULLIF(b25.TotalBookings, 0) < 0.15
+      THEN 'SUCCESS: Top performer - maintain'
+    WHEN arp.RatePlanCode LIKE '%COMP%' AND COALESCE(b25.UnitNights, 0) / NULLIF(t25.TotalUnitNights, 0) > 0.05
+      THEN 'REVIEW: Comps using >5% of inventory'
+    ELSE 'MONITOR: Continue current strategy'
+  END as RecommendedAction
+
+FROM all_rate_plans arp
+LEFT JOIN bookings_2024 b24 ON arp.RatePlanCode = b24.RatePlanCode
+LEFT JOIN bookings_2025 b25 ON arp.RatePlanCode = b25.RatePlanCode
+LEFT JOIN bookings_2026 b26 ON arp.RatePlanCode = b26.RatePlanCode
+CROSS JOIN totals_2025 t25
+WHERE COALESCE(b24.TotalBookings, 0) > 0 
+   OR COALESCE(b25.TotalBookings, 0) > 0 
+   OR COALESCE(b26.TotalBookings, 0) > 0
+ORDER BY COALESCE(b25.TotalRevenue, 0) DESC

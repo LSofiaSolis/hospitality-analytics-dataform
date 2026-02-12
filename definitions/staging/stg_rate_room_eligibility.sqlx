@@ -1,0 +1,22 @@
+config {
+  type: "view",
+  schema: "hospitality_staging",
+  name: "stg_rate_room_eligibility",
+  description: "Active rate plan to room type eligibility rules with current effective dates",
+  tags: ["staging", "config"]
+}
+
+SELECT
+  rule_id,
+  rate_plan_id,
+  room_type_id,
+  is_eligible,
+  effective_date,
+  COALESCE(expiration_date, DATE '9999-12-31') as expiration_date,
+  eligibility_reason,
+  notes,
+  created_by,
+  approved_by,
+  version
+FROM ${ref("bridge_rate_room_eligibility")}
+WHERE is_active = TRUE

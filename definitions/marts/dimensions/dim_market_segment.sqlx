@@ -1,0 +1,18 @@
+config {
+  type: "view",
+  schema: "hospitality_marts",
+  name: "dim_market_segment",
+  description: "Market segment dimension - reads from config table with user-managed classifications",
+  tags: ["marts", "dimension", "core", "config-driven"]
+}
+
+SELECT
+  market_segment_id,
+  segment_code,
+  segment_name,
+  generalized_segment,
+  is_active,
+  created_at,
+  updated_at
+FROM ${ref("config_market_segment")}
+WHERE is_active = TRUE

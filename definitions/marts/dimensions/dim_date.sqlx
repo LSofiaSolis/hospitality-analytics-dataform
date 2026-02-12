@@ -1,0 +1,41 @@
+config {
+  type: "view",
+  schema: "hospitality_marts",
+  name: "dim_date",
+  description: "Date dimension - passthrough from legacy with standardized naming.",
+  tags: ["marts", "dimension", "core"]
+}
+
+SELECT
+  Date as date_key,
+  DateKey as date_key_string,
+  Year as year,
+  Month as month,
+  Day as day,
+  DayOfYear as day_of_year,
+  Quarter as quarter,
+  DayName as day_name,
+  MonthName as month_name,
+  MonthNameShort as month_name_short,
+  DayNameShort as day_name_short,
+  ISOWeek as iso_week,
+  ISOWeekStart as iso_week_start,
+  WeekStartSunday as week_start_sunday,
+  WeekStartMonday as week_start_monday,
+  MonthStart as month_start,
+  MonthEnd as month_end,
+  QuarterStart as quarter_start,
+  QuarterEnd as quarter_end,
+  YearStart as year_start,
+  YearEnd as year_end,
+  IsWeekend as is_weekend,
+  Season as season,
+  FiscalYear as fiscal_year,
+  FiscalQuarter as fiscal_quarter,
+  IsSummerPeak as is_summer_peak,
+  HolidayRamp as holiday_ramp,
+  NYHolidayTail as ny_holiday_tail,
+  IsYearEnd as is_year_end,
+  YearWeekIndex as year_week_index
+
+FROM ${ref("Dim_Date")}

@@ -1,0 +1,25 @@
+config {
+  type: "view",
+  schema: "hospitality_reporting",
+  name: "rpt_unit_type_mapping",
+  description: "Unit type mapping reference."
+}
+
+SELECT DISTINCT
+  room_type as Room_Type,
+  room_type_category as Unit_Type,
+  CASE 
+    WHEN room_type IN ('TGVF', 'PEVA', 'PEBV', 'EBVA', 'EBVW', 'BWKA', 'BWKV') THEN 1
+    WHEN room_type IN ('2EVA', '2EBV', '2GVA', '2GWV') THEN 2
+    WHEN room_type IN ('4EVM', '4EVQ', '4GVM', '4GVK', '4GVQ') THEN 4
+    WHEN room_type = '5BRS' THEN 5
+    WHEN room_type = '6BRT' THEN 6
+    WHEN room_type = '7BRS' THEN 7
+    WHEN room_type IN ('8BRS', '8BRT') THEN 8
+    WHEN room_type IN ('9BRS', '9BRT', '9BAT') THEN 9
+    WHEN room_type IN ('10BR', '10BT', '10AT') THEN 10
+    WHEN room_type IN ('11BR', '11BA') THEN 11
+    ELSE 0
+  END as Bedroom_Count
+FROM ${ref("stg_booked_reservations")}
+WHERE room_type IS NOT NULL

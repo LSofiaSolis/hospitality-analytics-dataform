@@ -1,0 +1,121 @@
+config {
+  type: "table",
+  schema: "hospitality_staging",
+  name: "stg_booked_reservations",
+  description: "Cleaned and standardized reservation data with market segment classification and rate fixes.",
+  tags: ["staging", "daily", "core"],
+  
+  columns: {
+    confirmation_number: "Unique reservation identifier",
+    external_confirmation_number: "External system confirmation number",
+    po_number: "Purchase order number",
+    guest_name: "Guest full name",
+    company_name: "Company name for group/corporate bookings",
+    booking_date: "Date the reservation was created",
+    booking_time: "Time the reservation was created",
+    arrival_date: "Scheduled arrival date",
+    departure_date: "Scheduled departure date",
+    cancellation_date: "Date of cancellation (if cancelled)",
+    cancellation_time: "Time of cancellation (if cancelled)",
+    nights: "Length of stay in nights",
+    room_type: "Room type code",
+    room_type_category: "Derived: Flats, Houses, Villas, Other",
+    rate_code: "Rate plan code",
+    source: "Booking source",
+    market_segment: "Market segment (classified)",
+    market_segment_original: "Original market segment from source",
+    booking_status: "Current reservation status",
+    total_revenue: "Total room revenue (with HHNSRR fix applied)",
+    adr: "Average daily rate",
+    average_room_rate: "Average room rate",
+    adults: "Number of adults",
+    children: "Number of children",
+    booked_by: "User who created the booking"
+  }
+}
+
+WITH source AS (
+  SELECT * FROM ${ref("bookedresclean")}
+  WHERE Booking_Date IS NOT NULL
+    AND CAST(Nights AS INT64) > 0
+),
+
+classified AS (
+  SELECT
+    *,
+    -- Market Segment Classification Logic (from notebook)
+    CASE
+      -- If segment is valid, keep it
+      WHEN Market_Segment IS NOT NULL 
+        AND UPPER(TRIM(Market_Segment)) NOT IN ('NAN', 'NULL', 'NONE', '')
+        THEN UPPER(TRIM(Market_Segment))
+      
+      -- Classify by Rate Code
+      WHEN UPPER(Rate_Code) = 'COURTNEY25' THEN 'WEBSITE'
+      WHEN UPPER(Rate_Code) IN ('BAR', 'FLRES30', 'FLRES35', 'CYBERMONDAY30', 'CYBERMONDAY40') THEN 'WEBSITE'
+      WHEN UPPER(Rate_Code) LIKE '%AIRBNB%' THEN 'AIRBNB'
+      WHEN UPPER(Rate_Code) LIKE '%VRBO%' THEN 'VRBO'
+      WHEN UPPER(Rate_Code) LIKE 'BOOKING%' THEN 'BOOKING'
+      WHEN UPPER(Rate_Code) LIKE '%EXPEDIA%' THEN 'EXPEDIA'
+      WHEN UPPER(Rate_Code) IN ('WHOLESALE', 'WHOLESALE2', 'TFNPRO3') THEN 'WHOLESALE'
+      WHEN UPPER(Rate_Code) LIKE '%COMP%' THEN 'COMP'
+      WHEN UPPER(Rate_Code) LIKE '%GROUP%' THEN 'GROUP'
+      WHEN UPPER(Rate_Code) = 'HHNSRR' THEN 'HILTON'
+      
+      -- Default fallback
+      ELSE 'RACK'
+    END AS market_segment_classified
+    
+  FROM source
+)
+
+SELECT 
+  CAST(Confirmation_Number AS STRING) AS confirmation_number,
+  CAST(External_Confirmation_Number AS STRING) AS external_confirmation_number,
+  CAST(PO_Number AS STRING) AS po_number,
+  TRIM(Guest_Name) AS guest_name,
+  TRIM(Company_Name) AS company_name,
+  CAST(Booking_Date AS DATE) AS booking_date,
+  TRIM(Booking_Time) AS booking_time,
+  CAST(Arrival_Date AS DATE) AS arrival_date,
+  CAST(Departure_Date AS DATE) AS departure_date,
+  CAST(Cancellation_Date AS DATE) AS cancellation_date,
+  TRIM(Cancellation_Time) AS cancellation_time,
+  CAST(Nights AS INT64) AS nights,
+  UPPER(TRIM(Room_Type)) AS room_type,
+  
+  -- Room Type Category
+  CASE 
+    WHEN Room_Type IN ('TGVF', 'PEVA', 'PEBV', '2EVA', '2EBV', '2GVA', '2GWV', 'EBVA', 'EBVW', 'BWKA', 'BWKV') THEN 'Flats'
+    WHEN Room_Type IN ('4EVM', '4EVQ', '4GVM', '4GVK', '4GVQ', '5BRS', '6BRT', '7BRS') THEN 'Houses'
+    WHEN Room_Type IN ('8BRS', '8BRT', '9BRS', '9BRT', '9BAT', '10BR', '10BT', '10AT', '11BR', '11BA') THEN 'Villas'
+    ELSE 'Other'
+  END AS room_type_category,
+  
+  COALESCE(UPPER(TRIM(Rate_Code)), 'UNKNOWN') AS rate_code,
+  UPPER(TRIM(Source)) AS source,
+  
+  -- Use classified market segment
+  market_segment_classified AS market_segment,
+  
+  -- Keep original for reference
+  UPPER(TRIM(Market_Segment)) AS market_segment_original,
+  
+  UPPER(TRIM(Current_Booking_Status)) AS booking_status,
+  
+  -- HHNSRR Rate Fix: Apply $275/night for Hilton redemptions with $0 rate
+  CASE
+    WHEN UPPER(Rate_Code) = 'HHNSRR' 
+      AND (Total_Room_Rate = 0 OR Total_Room_Rate IS NULL)
+    THEN CAST(Nights AS INT64) * 275.0
+    ELSE CAST(Total_Room_Rate AS FLOAT64)
+  END AS total_revenue,
+  
+  CAST(ADR AS FLOAT64) AS adr,
+  CAST(Average_Room_Rate AS FLOAT64) AS average_room_rate,
+  CAST(Adults AS INT64) AS adults,
+  CAST(COALESCE(Children, 0) AS INT64) AS children,
+  TRIM(Booked_By) AS booked_by,
+  CURRENT_TIMESTAMP() AS _loaded_at
+
+FROM classified

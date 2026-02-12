@@ -1,0 +1,23 @@
+config {
+  type: "view",
+  schema: "hospitality_reporting",
+  name: "rpt_stay_nights",
+  description: "Stay nights report for Looker Studio."
+}
+
+SELECT 
+  confirmation_number as Confirmation_Number,
+  market_segment as Market_Segment,
+  room_type as Room_Type,
+  booking_date as Booking_Date,
+  booking_status as Current_Booking_Status,
+  booking_type as Booking_Type,
+  stay_date as Stay_Date,
+  stay_year as Stay_Year,
+  stay_month as Stay_Month,
+  stay_month_name as Stay_Month_Name,
+  stay_quarter as Stay_Quarter,
+  day_of_week as Day_of_Week,
+  room_nights as Room_Nights,
+  revenue as Revenue
+FROM ${ref("fct_stay_nights")}

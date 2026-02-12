@@ -1,0 +1,74 @@
+config {
+  type: "table",
+  schema: "hospitality_marts",
+  name: "fct_guest_lifetime"
+}
+
+WITH guest_stays AS (
+  SELECT
+    GuestID,
+    COUNT(*) AS total_stays,
+    SUM(TotalRevenue) AS total_revenue,
+    SUM(Nights) AS total_nights,
+    MIN(PARSE_DATE('%Y%m%d', ArrivalDateKey)) AS first_stay,
+    MAX(PARSE_DATE('%Y%m%d', ArrivalDateKey)) AS last_stay,
+    AVG(Adults + Children) AS avg_party_size
+  FROM ${ref("fct_reservations")}
+  WHERE GuestID IS NOT NULL
+  GROUP BY GuestID
+)
+
+SELECT
+  GuestID,
+  CAST(GuestID AS STRING) AS GuestName,
+  'REGULAR' AS GuestType,
+  total_stays AS TotalStays,
+  total_stays AS RegularStays,
+  0 AS CompOrEmployeeStays,
+  GREATEST(total_stays - 1, 0) AS RepeatStays,
+  GREATEST(total_stays - 1, 0) AS TrueRepeatVisits,
+  0 AS ExtensionStays,
+  0 AS NoShowStays,
+  total_stays AS CompletedStays,
+  0 AS UpgradeCount,
+  0 AS DowngradeCount,
+  total_stays AS SameLevelCount,
+  SAFE_DIVIDE(total_nights, total_stays) AS AvgLOS,
+  avg_party_size AS AvgAdults,
+  0.0 AS AvgChildren,
+  total_revenue AS TotalRevenue,
+  total_nights AS TotalNights,
+  SAFE_DIVIDE(total_revenue, total_nights) AS ADR_Computed,
+  first_stay AS FirstStay,
+  last_stay AS LastStay,
+  DATE_DIFF(CURRENT_DATE(), last_stay, DAY) AS DaysSinceLastStay,
+  CAST(NULL AS INT64) AS NextBookedArrival,
+  0 AS FutureBookingCount,
+  CAST(NULL AS INT64) AS DaysUntilNextBooking,
+  SAFE_DIVIDE(DATE_DIFF(last_stay, first_stay, DAY), GREATEST(total_stays - 1, 1)) AS AvgDaysBetweenVisits,
+  CAST(NULL AS INT64) AS PredictedNextVisit,
+  '' AS RatePlansUsed,
+  0 AS DistinctRatePlans,
+  '' AS UnitTypesUsed,
+  0.0 AS AvgQI,
+  0 AS MaxQI,
+  0 AS MinQI,
+  CASE
+    WHEN total_stays >= 5 THEN 'Frequent'
+    WHEN total_stays >= 2 THEN 'Repeat'
+    ELSE 'New'
+  END AS VisitFrequency,
+  CASE
+    WHEN total_revenue >= 10000 THEN 'High'
+    WHEN total_revenue >= 5000 THEN 'Medium'
+    ELSE 'Low'
+  END AS SpendingLevel,
+  total_stays > 1 AS IsRepeatGuest,
+  'Stable' AS UpgradeTrend,
+  CASE
+    WHEN DATE_DIFF(CURRENT_DATE(), last_stay, DAY) <= 180 THEN 'Recent'
+    WHEN DATE_DIFF(CURRENT_DATE(), last_stay, DAY) <= 365 THEN 'Active'
+    ELSE 'Dormant'
+  END AS VisitStatus,
+  DATE_DIFF(CURRENT_DATE(), last_stay, DAY) AS DaysValue
+FROM guest_stays

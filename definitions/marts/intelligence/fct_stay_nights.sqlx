@@ -1,0 +1,44 @@
+config {
+  type: "table",
+  schema: "hospitality_marts",
+  name: "fct_stay_nights",
+  description: "Exploded reservation data - one row per stay night.",
+  tags: ["marts", "intelligence", "daily", "occupancy"]
+}
+
+WITH base AS (
+  SELECT 
+    confirmation_number, market_segment, room_type, room_type_category,
+    booking_date, arrival_date, booking_status, nights, total_revenue
+  FROM ${ref("stg_booked_reservations")}
+),
+
+exploded AS (
+  SELECT 
+    confirmation_number, market_segment, room_type, room_type_category,
+    booking_date, booking_status,
+    DATE_ADD(arrival_date, INTERVAL night_offset DAY) as stay_date,
+    1 as room_nights,
+    total_revenue / nights as revenue
+  FROM base,
+  UNNEST(GENERATE_ARRAY(0, nights - 1)) as night_offset
+)
+
+SELECT 
+  confirmation_number, market_segment, room_type, room_type_category,
+  booking_date, booking_status,
+  CASE 
+    WHEN DATE_DIFF(stay_date, booking_date, DAY) <= 0 THEN 'Same Day'
+    WHEN DATE_DIFF(stay_date, booking_date, DAY) <= 7 THEN 'Short Term'
+    WHEN DATE_DIFF(stay_date, booking_date, DAY) <= 30 THEN 'Medium Term'
+    ELSE 'Long Term'
+  END as booking_type,
+  stay_date,
+  EXTRACT(YEAR FROM stay_date) as stay_year,
+  EXTRACT(MONTH FROM stay_date) as stay_month,
+  FORMAT_DATE('%B', stay_date) as stay_month_name,
+  EXTRACT(QUARTER FROM stay_date) as stay_quarter,
+  FORMAT_DATE('%A', stay_date) as day_of_week,
+  room_nights,
+  revenue
+FROM exploded

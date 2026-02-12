@@ -1,0 +1,18 @@
+config {
+  type: "view",
+  schema: "hospitality_marts",
+  name: "dim_events_calendar",
+  description: "Events calendar with holidays, school breaks, and local events.",
+  tags: ["marts", "dimension", "calendar"]
+}
+
+SELECT
+  Date as event_date,
+  Event_Name as event_name,
+  Event_Type as event_type,
+  Impact_Level as impact_level,
+  Is_Peak_Season as is_peak_season,
+  Notes as notes,
+  Created_At as created_at
+
+FROM ${ref("Dim_Events_Calendar")}
